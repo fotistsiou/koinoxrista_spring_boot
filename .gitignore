@@ -37,3 +37,4 @@ CLAUDE.md
 
 ### Local config (contains secrets) ###
 application-local.properties
+.env
