@@ -22,4 +22,9 @@ public class Apartment {
     public void setName(String name) {
         this.name = name;
     }
+
+    @Override
+    public String toString() {
+        return "Apartment " + name + " (ID: " + id + ")";
+    }
 }

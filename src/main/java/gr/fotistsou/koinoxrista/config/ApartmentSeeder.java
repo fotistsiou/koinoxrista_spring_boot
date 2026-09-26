@@ -4,12 +4,15 @@ import gr.fotistsou.koinoxrista.entity.Apartment;
 import gr.fotistsou.koinoxrista.repository.ApartmentRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 @Component
 public class ApartmentSeeder implements CommandLineRunner {
     private final ApartmentRepository apartmentRepository;
+    private static final Logger log = LoggerFactory.getLogger(ApartmentSeeder.class);
 
     public ApartmentSeeder(ApartmentRepository apartmentRepository) {
         this.apartmentRepository = apartmentRepository;
@@ -26,7 +29,8 @@ public class ApartmentSeeder implements CommandLineRunner {
             apartment1.setName("Ισόγειο");
             apartment2.setName("1ος");
             apartment3.setName("2ος");
-            apartmentRepository.saveAll(List.of(apartment1, apartment2, apartment3));
+            List<Apartment> saved = apartmentRepository.saveAll(List.of(apartment1, apartment2, apartment3));
+            log.info("Seeded apartments: {}", saved);
         }
     }
 }
