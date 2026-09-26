@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Διαμερίσματα</title>
+</head>
+<body>
+    <ul>
+        <li th:each="apartment : ${apartments}" th:text="${apartment.name}"></li>
+    </ul>
+</body>
+</html>
