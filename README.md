@@ -17,21 +17,27 @@ it for their own building), not as a product for third parties.
 
 ## Setup and run locally
 
-1. Have a local PostgreSQL instance running and create the database (connection
-   settings live in `src/main/resources/application.properties`).
+1. Start PostgreSQL via Docker Compose. Copy `.env.example` to `.env` and set the
+   same DB name / user / password that `src/main/resources/application-local.properties`
+   expects, then:
+   ```bash
+   docker compose up -d
+   ```
 2. Build:
    ```bash
    ./mvnw clean package
    ```
-3. Run the Spring Boot app:
+3. Run the Spring Boot app (the `local` profile is active by default):
    ```bash
    ./mvnw spring-boot:run
    ```
 
-The app starts on `http://localhost:8080` by default.
+The app starts on `http://localhost:8080` by default. The apartment listing is at
+`/apartments`.
 
 ## Project structure
 
 Standard Maven/Spring Boot layout. Application code lives under `src/main/java`,
-Thymeleaf templates and configuration under `src/main/resources`. See
-[RUNBOOK.md](RUNBOOK.md) for operational commands.
+Thymeleaf templates and configuration under `src/main/resources`. DB connection
+settings live in `application-local.properties` (activated by the `local` profile).
+See [RUNBOOK.md](RUNBOOK.md) for operational commands.

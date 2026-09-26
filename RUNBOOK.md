@@ -23,32 +23,45 @@ The app listens on `http://localhost:8080` by default.
 
 ## Database
 
-Connection settings live in `src/main/resources/application.properties`
-(`spring.datasource.url`, `spring.datasource.username`, `spring.datasource.password`).
+PostgreSQL runs as a Docker container defined in `docker-compose.yml`. Its
+credentials come from `.env` (copy from `.env.example`).
 
-Connect to local PostgreSQL with psql:
+Start / stop the database:
 ```bash
-psql -h localhost -p 5432 -U <username> -d <database>
+docker compose up -d
+docker compose down          # add -v to also wipe the data volume
 ```
 
-Check that PostgreSQL is running (Windows service):
-```powershell
-Get-Service -Name postgresql*
+App connection settings live in `src/main/resources/application-local.properties`
+(`spring.datasource.url`, `spring.datasource.username`, `spring.datasource.password`),
+activated by the `local` profile (`spring.profiles.active=local` in
+`application.properties`). The values there must match the `POSTGRES_*` values in
+`.env`.
+
+Connect with psql (via the running container):
+```bash
+docker exec -it koinoxrista-db psql -U <username> -d <database>
+```
+
+Check the container is up:
+```bash
+docker ps --filter name=koinoxrista-db
 ```
 
 ## Troubleshooting
 
 App won't start — check these in order:
 
-- **Database not running.** Start the PostgreSQL service and retry:
-  ```powershell
-  Start-Service postgresql*
+- **Database not running.** Start the Docker container and retry:
+  ```bash
+  docker compose up -d
   ```
-  Confirm you can connect with the `psql` command above.
+  Confirm it's up with `docker ps --filter name=koinoxrista-db`.
 
-- **Wrong credentials or database name.** Compare `spring.datasource.*` in
-  `application.properties` against the real database. A `PSQLException` /
-  `password authentication failed` in the startup log points here.
+- **Wrong credentials or database name.** The `spring.datasource.*` values in
+  `application-local.properties` must match the `POSTGRES_*` values in `.env`. A
+  `PSQLException` / `password authentication failed` in the startup log points
+  here.
 
 - **Port already in use.** If port 8080 is taken (`Web server failed to start.
   Port 8080 was already in use`), find and stop the process:
