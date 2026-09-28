@@ -32,8 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
-### Claude Code ###
+### MD files ###
 CLAUDE.md
+GLOSSARY.md
 
 ### Local config (contains secrets) ###
 application-local.properties

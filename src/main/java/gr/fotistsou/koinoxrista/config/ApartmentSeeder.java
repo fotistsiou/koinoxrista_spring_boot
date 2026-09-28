@@ -2,17 +2,17 @@ package gr.fotistsou.koinoxrista.config;
 
 import gr.fotistsou.koinoxrista.entity.Apartment;
 import gr.fotistsou.koinoxrista.repository.ApartmentRepository;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
 public class ApartmentSeeder implements CommandLineRunner {
-    private final ApartmentRepository apartmentRepository;
     private static final Logger log = LoggerFactory.getLogger(ApartmentSeeder.class);
+    private final ApartmentRepository apartmentRepository;
 
     public ApartmentSeeder(ApartmentRepository apartmentRepository) {
         this.apartmentRepository = apartmentRepository;
@@ -20,9 +20,7 @@ public class ApartmentSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Check if the database is empty
         if (apartmentRepository.count() == 0) {
-            // Seed the database with initial data
             Apartment apartment1 = new Apartment();
             Apartment apartment2 = new Apartment();
             Apartment apartment3 = new Apartment();

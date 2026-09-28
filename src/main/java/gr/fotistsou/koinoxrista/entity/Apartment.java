@@ -1,4 +1,5 @@
 package gr.fotistsou.koinoxrista.entity;
+
 import jakarta.persistence.*;
 
 @Entity
