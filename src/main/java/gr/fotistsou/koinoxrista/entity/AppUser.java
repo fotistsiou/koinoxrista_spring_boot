@@ -1,5 +1,6 @@
 package gr.fotistsou.koinoxrista.entity;
 
+import gr.fotistsou.koinoxrista.enums.Role;
 import jakarta.persistence.*;
 
 @Entity
@@ -20,6 +21,14 @@ public class AppUser {
 
     @Column(nullable = false)
     private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
+    @OneToOne
+    @JoinColumn(name = "apartment_id")
+    private Apartment apartment;
 
     public Long getId() {
         return id;
@@ -55,5 +64,21 @@ public class AppUser {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public Apartment getApartment() {
+        return apartment;
+    }
+
+    public void setApartment(Apartment apartment) {
+        this.apartment = apartment;
     }
 }
