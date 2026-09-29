@@ -118,9 +118,9 @@ JDBC batch inserts, so SEQUENCE scales better for bulk writes.
 ### Derived query methods
 **What:** Spring Data generates the query from the method *name* — e.g.
 `findByName(String name)` becomes a `WHERE name = ?` query.
-**Why it matters / when I used it:** Not used yet (only `findAll`), but it's how
-you'll add lookups without writing SQL. Pitfall: a typo in the property name fails
-at startup, which is actually a useful early warning.
+**Why it matters / when I used it:** It's how you'll add lookups without writing SQL. 
+Pitfall: a typo in the property name fails at startup, which is actually a useful 
+early warning.
 
 ### BigDecimal for money
 **What:** An arbitrary-precision decimal type. Unlike `double`/`float`, it represents
