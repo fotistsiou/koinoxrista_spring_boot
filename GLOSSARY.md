@@ -1,9 +1,7 @@
 # Programming Glossary
 
 A personal learning glossary of **programming** concepts encountered while building
-this Spring Boot app — transferable knowledge for the PHP → Java transition
-(targeting fintech). Business/domain decisions (SplitRule, Debt, Payment, …) live
-in [CLAUDE.md](CLAUDE.md), not here.
+this Spring Boot app.
 
 ## How this file works
 
