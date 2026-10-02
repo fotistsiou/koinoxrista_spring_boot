@@ -65,4 +65,15 @@ public class Bill {
     public void setCategory(Category category) {
         this.category = category;
     }
+
+    @Override
+    public String toString() {
+        return "Bill{" +
+                "id=" + id +
+                ", amount=" + amount +
+                ", billDate=" + billDate +
+                ", splitRule=" + splitRule +
+                ", categoryId=" + (category != null ? category.getId() : null) +
+                '}';
+    }
 }

@@ -26,6 +26,9 @@ public class Apartment {
 
     @Override
     public String toString() {
-        return "Apartment " + name + " (ID: " + id + ")";
+        return "Apartment{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                '}';
     }
 }
