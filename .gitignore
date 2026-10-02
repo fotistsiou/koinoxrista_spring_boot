@@ -34,7 +34,6 @@ build/
 
 ### MD files ###
 CLAUDE.md
-GLOSSARY.md
 
 ### Local config (contains secrets) ###
 application-local.properties

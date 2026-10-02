@@ -9,13 +9,14 @@ import java.time.LocalDate;
 import static jakarta.persistence.GenerationType.IDENTITY;
 
 @Entity
+@Inheritance(strategy = InheritanceType.JOINED)
 @Table(name = "bill")
 public class Bill {
     @Id
     @GeneratedValue(strategy = IDENTITY)
     private Long id;
 
-    @Column(precision = 10, scale = 2, nullable = false)
+    @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
     @Column(name = "bill_date", nullable = false)
@@ -26,7 +27,7 @@ public class Bill {
     private Category category;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "split_rule", nullable = false)
     private SplitRule splitRule;
 
     public SplitRule getSplitRule() {
