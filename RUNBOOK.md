@@ -64,6 +64,20 @@ docker compose up -d
 ./mvnw spring-boot:run
 ```
 
+## Reset the database
+
+When an entity change alters an **existing** column (nullability, type, rename),
+`ddl-auto=update` will not apply it — it only adds missing tables/columns. Reset
+the database, then restart the app:
+```bash
+docker compose down -v
+docker compose up -d
+./mvnw spring-boot:run
+```
+All tables are recreated from the entities and the seeders run again.
+
+> ⚠️ `down -v` deletes the data volume: **all data is lost**.
+
 ## Troubleshooting
 
 App won't start — check these in order:

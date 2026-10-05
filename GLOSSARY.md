@@ -81,6 +81,19 @@ to end. `Bill` gets its controller only together with `Debt` and the calculation
 service, because "enter a bill and see who owes what" is the feature — a Bill
 controller on its own delivers nothing usable.
 
+### is-a vs has-a (inheritance vs association)
+**What:** *is-a* = inheritance: the child is a specialized version of the parent.
+*has-a* = association: one object refers to another.
+**Why it matters / when I used it:** `GasBill` IS-A `Bill` (inheritance); `Debt`
+HAS-A `Bill` (association, `@ManyToOne`). Prefer association unless the child truly
+is a specialized version of the parent — inheritance couples the two tightly.
+
+### Single Responsibility Principle (SRP)
+**What:** A class should have one reason to change.
+**Why it matters / when I used it:** Justifies keeping `AppUser` (identity, login)
+separate from `Apartment` (physical unit, financial history): a password-policy
+change and a billing change should never touch the same class.
+
 ---
 
 ## 2. Persistence & Database
@@ -165,8 +178,17 @@ STRING for persisted enums — reorder-safe and readable in the DB.
 the foreign key on this ("owning") side's table.
 **Why it matters / when I used it:** `Bill` has `@ManyToOne` to `Category`
 (`category_id` FK lives in the bill table). `AppUser` has `@OneToOne` to `Apartment`.
-The owning side holds the FK; nullable on the FK expresses a domain rule (a user may
-have no apartment; a bill must have a category).
+The owning side holds the FK; nullable on the FK expresses a domain rule (a user must
+have an apartment; a bill must have a category).
+
+### optional = false vs nullable = false
+**What:** `nullable = false` (on `@Column`/`@JoinColumn`) is a **DB** constraint: it
+goes into the DDL as a `NOT NULL` column. `optional = false` (on `@OneToOne`/
+`@ManyToOne`) is a **JPA-level** rule: Hibernate checks it before insert and uses it
+to load the association more efficiently (it knows the target always exists).
+**Why it matters / when I used it:** Used together on `AppUser.apartment` — the DB
+rejects a missing apartment even from raw SQL, and Hibernate catches it earlier, in
+Java, with a clearer error.
 
 ### JPA inheritance strategies
 **What:** Three ways JPA maps a class hierarchy to tables. SINGLE_TABLE: one table
@@ -236,7 +258,10 @@ which eases the transition.
 (`spring.jpa.hibernate.ddl-auto`): `none`, `validate`, `update`, `create`,
 `create-drop`.
 **Why it matters / when I used it:** Set to `update` locally so the schema follows
-entity changes without manual SQL. Interview/fintech caveat: never `update` in
+entity changes without manual SQL. Pitfall: `update` only **adds** missing
+tables/columns; it never alters or drops existing ones (changed nullability, type,
+renamed/removed fields stay as they were). After such a change, reset the DB in dev
+(see RUNBOOK.md); in prod, write a migration. Interview/fintech caveat: never `update` in
 production — use `validate` plus real migrations (Flyway/Liquibase) so schema changes
 are reviewed and versioned.
 
