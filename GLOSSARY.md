@@ -2,6 +2,7 @@
 
 A personal learning glossary of **programming** concepts encountered while building
 this Spring Boot app.
+Business/domain logic is documented in [DOMAIN.md](DOMAIN.md).
 
 ## How this file works
 
@@ -22,7 +23,8 @@ this Spring Boot app.
 instead of the object building them with `new`. Constructor injection supplies them
 as constructor parameters.
 **Why it matters / when I used it:** Every controller/seeder here takes its
-`ApartmentRepository` via the constructor — Spring wires it automatically. It makes
+repository (e.g. `ApartmentRepository`) via the constructor — Spring wires it
+automatically. It makes
 dependencies explicit, allows `final` fields, and lets you pass mocks in tests. In
 PHP terms it's the container resolving type-hinted constructor args, done for you.
 
@@ -69,6 +71,15 @@ risking a NullPointerException on a null return. Signals absence in the type sys
 service (logic), narrow repository (DB only). We deliberately skipped a service for
 Apartment because its controller only does `findAll` — a pass-through service adds
 nothing. It arrives when real logic does (splitting bills into debts).
+
+### Vertical slice vs horizontal layering
+**What:** Vertical slice = build every layer one *feature* needs (entity →
+repository → service → controller → view) before moving on. Horizontal layering =
+build one layer at a time, or all layers of one entity at a time.
+**Why it matters / when I used it:** Every commit delivers something that works end
+to end. `Bill` gets its controller only together with `Debt` and the calculation
+service, because "enter a bill and see who owes what" is the feature — a Bill
+controller on its own delivers nothing usable.
 
 ---
 
@@ -118,8 +129,9 @@ JDBC batch inserts, so SEQUENCE scales better for bulk writes.
 ### Derived query methods
 **What:** Spring Data generates the query from the method *name* — e.g.
 `findByName(String name)` becomes a `WHERE name = ?` query.
-**Why it matters / when I used it:** It's how you'll add lookups without writing SQL. 
-Pitfall: a typo in the property name fails at startup, which is actually a useful 
+**Why it matters / when I used it:** Lookups without writing SQL. First real use:
+`AppUserRepository.findByEmail(String email)` returning `Optional<AppUser>`.
+Pitfall: a typo in the property name fails at startup, which is actually a useful
 early warning.
 
 ### BigDecimal for money
@@ -165,6 +177,31 @@ full table per concrete class (rarely ideal).
 each table clean (no null meter columns on electricity bills), honoring the "each type
 only its own fields" decision. Trade-off accepted: reading a `GasBill` needs a JOIN —
 negligible at this scale. In the DB, `gas_bill`'s id is also a FK to `bill`.
+
+### Polymorphic queries
+**What:** A query on the base entity returns instances of the actual subclass. With
+JOINED inheritance, Hibernate LEFT JOINs the subclass tables and builds the right
+type per row.
+**Why it matters / when I used it:** `BillRepository.findAll()` returns real
+`GasBill` instances for gas rows (Hibernate LEFT JOINs `gas_bill`), so no separate
+`GasBillRepository` is needed.
+
+### Unidirectional vs bidirectional relationships
+**What:** Unidirectional = only the owning side (`@ManyToOne` + `@JoinColumn`) knows
+the relation. Bidirectional adds `@OneToMany(mappedBy = "...")` on the other side.
+The DB schema is identical either way; only Java navigation changes.
+**Why it matters / when I used it:** All relationships here stay unidirectional. A
+derived query (e.g. a future `debtRepository.findByBill`) gives the same result as
+`bill.getDebts()`, and a bidirectional relation must be kept in sync on both sides
+by hand.
+
+### toString() in entities
+**What:** An entity's `toString()` prints its own fields and only the **id** of
+related entities (e.g. `billId=…`, not the whole `Bill`).
+**Why it matters / when I used it:** Printing a related entity can trigger a
+`LazyInitializationException` (if the relation becomes LAZY) or a
+`StackOverflowError` (if it becomes bidirectional and both sides print each other).
+Used in `Bill`, `Debt`, `Payment`.
 
 ---
 
@@ -220,8 +257,8 @@ Maven also compiles and packages.
 ### CommandLineRunner
 **What:** An interface with one `run(...)` method that Spring executes once, after
 the context is ready.
-**Why it matters / when I used it:** `ApartmentSeeder` implements it to seed data on
-startup. The go-to hook for "run this once when the app boots."
+**Why it matters / when I used it:** `ApartmentSeeder` and `CategorySeeder` implement
+it to seed data on startup. The go-to hook for "run this once when the app boots."
 
 ---
 

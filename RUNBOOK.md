@@ -16,8 +16,10 @@ Start the app:
 
 Run the packaged jar instead (after `package`):
 ```bash
-java -jar target/*.jar
+java -jar target/koinoxrista-0.0.1-SNAPSHOT.jar
 ```
+The name is `<artifactId>-<version>.jar` from `pom.xml`. Use the exact name:
+PowerShell passes `target/*.jar` to `java` literally instead of expanding it.
 
 The app listens on `http://localhost:8080` by default.
 
@@ -46,6 +48,20 @@ docker exec -it koinoxrista-db psql -U <username> -d <database>
 Check the container is up:
 ```bash
 docker ps --filter name=koinoxrista-db
+```
+
+## Seed data
+
+`ApartmentSeeder` and `CategorySeeder` insert the initial apartments and categories
+on startup, but only when their table is empty (`count() == 0`). Editing a seeder
+later does **not** change rows that already exist.
+
+To re-seed, delete the rows from that table (or wipe the whole database), then
+restart the app:
+```bash
+docker compose down -v       # wipes the whole DB (data volume)
+docker compose up -d
+./mvnw spring-boot:run
 ```
 
 ## Troubleshooting

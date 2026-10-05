@@ -14,6 +14,7 @@ it for their own building), not as a product for third parties.
 - Spring Data JPA
 - Thymeleaf
 - Maven
+- Docker / Docker Compose (local PostgreSQL)
 
 ## Setup and run locally
 
@@ -41,3 +42,9 @@ Standard Maven/Spring Boot layout. Application code lives under `src/main/java`,
 Thymeleaf templates and configuration under `src/main/resources`. DB connection
 settings live in `application-local.properties` (activated by the `local` profile).
 See [RUNBOOK.md](RUNBOOK.md) for operational commands.
+
+## Documentation
+
+- [DOMAIN.md](DOMAIN.md) — entities, relationships, split rules, locked principles
+- [GLOSSARY.md](GLOSSARY.md) — programming concepts learned while building the app
+- [RUNBOOK.md](RUNBOOK.md) — local run, database, seed data, troubleshooting

@@ -72,7 +72,7 @@ One expense of one month. Holds the **data**; the SplitRule holds the **logic**.
 | amount | BigDecimal(10,2) | not null — may be negative (credit bill) |
 | billDate | LocalDate | not null, column `bill_date` |
 | category | Category | `@ManyToOne`, FK `category_id`, not null |
-| splitRule | SplitRule (enum) | not null, `@Enumerated(STRING)` |
+| splitRule | SplitRule (enum) | not null, `@Enumerated(STRING)`, column `split_rule` |
 
 Electricity bills, gas faults/maintenance and disinfection are plain `Bill`s
 (only `amount` needed).
@@ -83,14 +83,14 @@ The monthly gas bill, which needs meter data. Shares the `id` with `bill`
 
 | Field | Type | Excel | Constraints |
 |---|---|---|---|
-| meterFloor | Integer | Μ1 — meter of the floor (1ος) | not null |
-| meterTotal | Integer | ΜΣ — total building meter | not null |
-| fixedCharge | BigDecimal(10,2) | ΕΔΑ+ΔΕΣΦΑ — fixed part | not null |
+| meterFloor | Integer | Μ1 — meter of the floor (1ος) | not null, column `meter_floor` |
+| meterTotal | Integer | ΜΣ — total building meter | not null, column `meter_total` |
+| fixedCharge | BigDecimal(10,2) | ΕΔΑ+ΔΕΣΦΑ — fixed part | not null, column `fixed_charge` |
 
 **Ω** (variable, consumption-based cost) = `amount − fixedCharge`.
 Computed, **not stored**.
 
-### ⏳ Debt — table `debt`
+### ✅ Debt — table `debt`
 What **one** apartment owes for **one** bill. Permanent record, never deleted.
 
 | Field | Type | Constraints |
@@ -102,14 +102,14 @@ What **one** apartment owes for **one** bill. Permanent record, never deleted.
 
 No paid/unpaid status.
 
-### ⏳ Payment — table `payment`
+### ✅ Payment — table `payment`
 Money an apartment handed over, as a lump sum covering many debts.
 
 | Field | Type | Constraints |
 |---|---|---|
 | id | Long | PK, IDENTITY |
 | amount | BigDecimal(10,2) | not null |
-| paymentDate | LocalDate | not null |
+| paymentDate | LocalDate | not null, column `payment_date` |
 | apartment | Apartment | `@ManyToOne`, FK `apartment_id`, not null |
 
 Linked to the **Apartment**, not to specific Debts.
@@ -163,6 +163,10 @@ Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
 5. **Overpayment (ρέστα) = negative balance**, not a separate field.
 6. **No stored totals** — balance = Σ(debts) − Σ(payments). One source of truth.
 7. **Negative amounts self-balance** — no special handling.
+8. **Debt has no paid/unpaid status** — payments settle the balance in aggregate,
+   not debt-by-debt.
+9. **Payment links to Apartment, not to Debts** — the owner is paid a lump sum, so
+   a payment is never allocated against specific debts.
 
 ---
 
