@@ -25,7 +25,7 @@ public class CategorySeeder implements CommandLineRunner {
             Category category2 = new Category();
             Category category3 = new Category();
             category1.setName("Κοινόχρηστο Ρεύμα");
-            category2.setName("Φυσικό αέριο");
+            category2.setName("Φυσικό Αέριο");
             category3.setName("Απολύμανση");
             List<Category> saved = categoryRepository.saveAll(List.of(category1, category2, category3));
             log.info("Seeded categories: {}", saved);
