@@ -5,10 +5,12 @@ import gr.fotistsou.koinoxrista.repository.ApartmentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@Order(1)
 @Component
 public class ApartmentSeeder implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(ApartmentSeeder.class);
