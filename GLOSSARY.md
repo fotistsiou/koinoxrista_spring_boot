@@ -81,6 +81,14 @@ to end. `Bill` gets its controller only together with `Debt` and the calculation
 service, because "enter a bill and see who owes what" is the feature — a Bill
 controller on its own delivers nothing usable.
 
+### Fail fast
+**What:** When data is in an impossible state, throw immediately with a clear message
+instead of continuing silently.
+**Why it matters / when I used it:** `CategorySeeder` looks up apartments with
+`apartmentRepository.findByName(...).orElseThrow(() -> new IllegalStateException(...))`.
+A missing apartment stops startup with "Apartment not found: …" instead of seeding a
+category with the wrong participants, which would surface much later as wrong debts.
+
 ### is-a vs has-a (inheritance vs association)
 **What:** *is-a* = inheritance: the child is a specialized version of the parent.
 *has-a* = association: one object refers to another.
@@ -190,6 +198,22 @@ to load the association more efficiently (it knows the target always exists).
 rejects a missing apartment even from raw SQL, and Hibernate catches it earlier, in
 Java, with a clearer error.
 
+### @ManyToMany and join tables
+**What:** "Many" on both sides means neither table can hold the FK, so a third
+(join) table holds the pairs. `@JoinTable` names it: `joinColumns` = this side's FK,
+`inverseJoinColumns` = the other side's FK. Collections are LAZY by default.
+**Why it matters / when I used it:** `Category.apartments` maps to
+`category_apartment (category_id, apartment_id)` — the apartments that share a
+category's bills.
+
+### Set vs List for @ManyToMany
+**What:** Use a `Set`, not a `List`, for a `@ManyToMany` collection.
+**Why it matters / when I used it:** A `Set` rejects duplicate pairs, and Hibernate
+handles an unordered `List` (a "bag") badly: removing one element deletes and
+re-inserts all rows. `Category.apartments` is initialized with `new HashSet<>()` and
+filled via `getApartments().add(...)` / `addAll(...)`. Pitfall: never assign
+`Set.of(...)` — it is immutable, so Hibernate fails when it tries to modify it.
+
 ### JPA inheritance strategies
 **What:** Three ways JPA maps a class hierarchy to tables. SINGLE_TABLE: one table
 with all columns + a discriminator (extra columns are null for other types). JOINED: a
@@ -218,12 +242,15 @@ derived query (e.g. a future `debtRepository.findByBill`) gives the same result 
 by hand.
 
 ### toString() in entities
-**What:** An entity's `toString()` prints its own fields and only the **id** of
-related entities (e.g. `billId=…`, not the whole `Bill`).
+**What:** An entity's `toString()` prints its own fields. A single-valued relation
+may print only the related **id** (e.g. `billId=…`, not the whole `Bill`);
+collections must not appear at all.
 **Why it matters / when I used it:** Printing a related entity can trigger a
 `LazyInitializationException` (if the relation becomes LAZY) or a
 `StackOverflowError` (if it becomes bidirectional and both sides print each other).
-Used in `Bill`, `Debt`, `Payment`.
+Printing a collection iterates it, which loads the lazy collection (an extra query,
+or a `LazyInitializationException` outside a session). Used in `Bill`, `Debt`,
+`Payment`; `Category` leaves out `apartments`.
 
 ---
 
@@ -284,6 +311,14 @@ Maven also compiles and packages.
 the context is ready.
 **Why it matters / when I used it:** `ApartmentSeeder` and `CategorySeeder` implement
 it to seed data on startup. The go-to hook for "run this once when the app boots."
+
+### @Order
+**What:** Sets the execution order of beans of the same kind, such as several
+`CommandLineRunner`s; a lower value runs first. Without it, Spring does not guarantee
+any order.
+**Why it matters / when I used it:** `ApartmentSeeder` is `@Order(1)` and
+`CategorySeeder` is `@Order(2)`, because categories need the apartments to exist
+before they can link to them.
 
 ---
 
