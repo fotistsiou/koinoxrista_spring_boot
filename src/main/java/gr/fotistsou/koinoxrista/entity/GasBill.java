@@ -1,8 +1,6 @@
 package gr.fotistsou.koinoxrista.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 
@@ -17,6 +15,10 @@ public class GasBill extends Bill {
 
     @Column(name = "fixed_charge", precision = 10, scale = 2, nullable = false)
     private BigDecimal fixedCharge;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "meter_apartment_id", nullable = false)
+    private Apartment meterApartment;
 
     public Integer getMeterTotal() {
         return meterTotal;
@@ -40,5 +42,24 @@ public class GasBill extends Bill {
 
     public void setFixedCharge(BigDecimal fixedCharge) {
         this.fixedCharge = fixedCharge;
+    }
+
+    public Apartment getMeterApartment() {
+        return meterApartment;
+    }
+
+    public void setMeterApartment(Apartment meterApartment) {
+        this.meterApartment = meterApartment;
+    }
+
+    @Override
+    public String toString() {
+        return "GasBill{" +
+                super.toString() +
+                "meterTotal=" + meterTotal +
+                ", meterFloor=" + meterFloor +
+                ", fixedCharge=" + fixedCharge +
+                ", meterApartmentId=" + (meterApartment != null ? meterApartment.getId() : null) +
+                '}';
     }
 }
