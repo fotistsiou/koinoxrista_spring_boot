@@ -98,6 +98,7 @@ The monthly gas bill, which needs meter data. Shares the `id` with `bill`
 | meterFloor | Integer | Μ1 — meter of the floor (1ος) | not null, column `meter_floor` |
 | meterTotal | Integer | ΜΣ — total building meter | not null, column `meter_total` |
 | fixedCharge | BigDecimal(10,2) | ΕΔΑ+ΔΕΣΦΑ — fixed part | not null, column `fixed_charge` |
+| meterApartment | Apartment | the apartment the floor meter belongs to (currently 1ος) | `@ManyToOne(optional = false)`, FK `meter_apartment_id`, not null |
 
 **Ω** (variable, consumption-based cost) = `amount − fixedCharge`.
 Computed, **not stored**.
@@ -136,6 +137,7 @@ Linked to the **Apartment**, not to specific Debts.
 | Bill → Category | N – 1 | `@ManyToOne` on Bill | `bill.category_id` |
 | Category → Apartment | N – N | `@ManyToMany` + `@JoinTable` on Category | `category_apartment` (`category_id`, `apartment_id`) |
 | GasBill → Bill | inheritance | `@Inheritance(JOINED)` on Bill | `gas_bill.id` |
+| GasBill → Apartment (meterApartment) | N – 1 | `@ManyToOne` on GasBill | `gas_bill.meter_apartment_id` |
 | Debt → Bill | N – 1 | `@ManyToOne` on Debt | `debt.bill_id` |
 | Debt → Apartment | N – 1 | `@ManyToOne` on Debt | `debt.apartment_id` |
 | Payment → Apartment | N – 1 | `@ManyToOne` on Payment | `payment.apartment_id` |
@@ -162,8 +164,8 @@ Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
 
 **METER_BASED** — monthly gas bill only:
 - Ω = amount − fixedCharge
-- 1ος = Ω × (meterFloor / meterTotal) + fixedCharge / 2
-- Ισόγειο = amount − 1ος
+- meterApartment = Ω × (meterFloor / meterTotal) + fixedCharge / 2
+- the other participating apartment (Ισόγειο) = amount − meterApartment's share
 
 ---
 
@@ -195,8 +197,12 @@ Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
   **Resolved:** on the Category (`Category.apartments`, `@ManyToMany`). History is
   safe: Debts are computed once, when a bill is entered, and stored — so later
   changes to a category's apartments affect only future bills.
-- ❓ **Floor meter owner:** METER_BASED needs to know which apartment the floor
-  meter (`meterFloor`) belongs to (today: 1ος). Not modeled yet.
+- ✅ ~~**Floor meter owner:** which apartment does the floor meter (`meterFloor`)
+  belong to?~~ **Resolved:** stored on GasBill as `meterApartment`, next to
+  `meterFloor` — never null, and each bill keeps its own value, so history stays
+  correct. Not on Category (would be null for every non-gas category), not on
+  Apartment (a gas concept on an unrelated entity), and never as a hard-coded
+  apartment name in the service.
 - ❓ **Where the split logic lives:** methods on the `SplitRule` enum, or a
   calculation service that switches on the rule.
 - ❓ **Export format** (Excel or PDF) — after the core works.
