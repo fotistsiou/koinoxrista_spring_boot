@@ -32,17 +32,17 @@ class MeterBasedSplitCalculatorTest {
     }
 
     // Real months from the 2025 gas Excel. Expected values are the Excel X1 / X0, rounded to cents.
-    @ParameterizedTest(name = "{index}: amount={0}, fixed={1} -> meter={4}, other={5}")
+    @ParameterizedTest(name = "{index}: amount={0}, consumption={1} -> meter={4}, other={5}")
     @CsvSource({
-            "51.61,  2.92,  115588, 291955, 20.74, 30.87",   // January
-            "100.25, -1.56, 118367, 294985, 40.07, 60.18",   // February: negative fixed charge
-            "41.21,  41.21, 120634, 298341, 20.61, 20.60",   // March: no consumption (Ω = 0)
-            "-0.17,  -2.67, 121233, 299161, -0.32,  0.15"    // December: negative bill
+            "51.61,  48.69,  115588, 291955, 20.74, 30.87",   // January
+            "100.25, 101.81, 118367, 294985, 40.07, 60.18",   // February: consumption above amount
+            "41.21,  0,      120634, 298341, 20.61, 20.60",   // March: no consumption (Ω = 0)
+            "-0.17,  2.50,   121233, 299161, -0.32,  0.15"    // December: negative bill
     })
-    void matchesExcelResults(BigDecimal amount, BigDecimal fixedCharge,
+    void matchesExcelResults(BigDecimal amount, BigDecimal consumptionCharge,
                              Integer meterFloor, Integer meterTotal,
                              BigDecimal expectedMeterShare, BigDecimal expectedOtherShare) {
-        GasBill bill = gasBill(amount, fixedCharge, meterFloor, meterTotal, firstFloor);
+        GasBill bill = gasBill(amount, consumptionCharge, meterFloor, meterTotal, firstFloor);
 
         Map<Apartment, BigDecimal> result = calculator.calculate(bill, Set.of(groundFloor, firstFloor));
 
@@ -63,7 +63,7 @@ class MeterBasedSplitCalculatorTest {
 
     @Test
     void throwsWhenParticipantsAreNotExactlyTwo() {
-        GasBill bill = gasBill(new BigDecimal("51.61"), new BigDecimal("2.92"), 115588, 291955, firstFloor);
+        GasBill bill = gasBill(new BigDecimal("51.61"), new BigDecimal("48.69"), 115588, 291955, firstFloor);
 
         assertThatThrownBy(() -> calculator.calculate(bill, Set.of(groundFloor, firstFloor, secondFloor)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -72,7 +72,7 @@ class MeterBasedSplitCalculatorTest {
 
     @Test
     void throwsWhenMeterApartmentIsNotAParticipant() {
-        GasBill bill = gasBill(new BigDecimal("51.61"), new BigDecimal("2.92"), 115588, 291955, secondFloor);
+        GasBill bill = gasBill(new BigDecimal("51.61"), new BigDecimal("48.69"), 115588, 291955, secondFloor);
 
         assertThatThrownBy(() -> calculator.calculate(bill, Set.of(groundFloor, firstFloor)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -88,11 +88,11 @@ class MeterBasedSplitCalculatorTest {
         return apartment;
     }
 
-    private GasBill gasBill(BigDecimal amount, BigDecimal fixedCharge,
+    private GasBill gasBill(BigDecimal amount, BigDecimal consumptionCharge,
                             Integer meterFloor, Integer meterTotal, Apartment meterApartment) {
         GasBill bill = new GasBill();
         bill.setAmount(amount);
-        bill.setFixedCharge(fixedCharge);
+        bill.setConsumptionCharge(consumptionCharge);
         bill.setMeterFloor(meterFloor);
         bill.setMeterTotal(meterTotal);
         bill.setMeterApartment(meterApartment);

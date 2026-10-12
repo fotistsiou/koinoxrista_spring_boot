@@ -13,8 +13,8 @@ public class GasBill extends Bill {
     @Column(name = "meter_floor", nullable = false)
     private Integer meterFloor;
 
-    @Column(name = "fixed_charge", precision = 10, scale = 2, nullable = false)
-    private BigDecimal fixedCharge;
+    @Column(name = "consumption_charge", precision = 10, scale = 2, nullable = false)
+    private BigDecimal consumptionCharge;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "meter_apartment_id", nullable = false)
@@ -36,12 +36,12 @@ public class GasBill extends Bill {
         this.meterFloor = meterFloor;
     }
 
-    public BigDecimal getFixedCharge() {
-        return fixedCharge;
+    public BigDecimal getConsumptionCharge() {
+        return consumptionCharge;
     }
 
-    public void setFixedCharge(BigDecimal fixedCharge) {
-        this.fixedCharge = fixedCharge;
+    public void setConsumptionCharge(BigDecimal consumptionCharge) {
+        this.consumptionCharge = consumptionCharge;
     }
 
     public Apartment getMeterApartment() {
@@ -56,9 +56,9 @@ public class GasBill extends Bill {
     public String toString() {
         return "GasBill{" +
                 super.toString() +
-                "meterTotal=" + meterTotal +
+                ", meterTotal=" + meterTotal +
                 ", meterFloor=" + meterFloor +
-                ", fixedCharge=" + fixedCharge +
+                ", consumptionCharge=" + consumptionCharge +
                 ", meterApartmentId=" + (meterApartment != null ? meterApartment.getId() : null) +
                 '}';
     }

@@ -97,10 +97,10 @@ The monthly gas bill, which needs meter data. Shares the `id` with `bill`
 |---|---|---|---|
 | meterFloor | Integer | Μ1 — meter of the floor (1ος) | not null, column `meter_floor` |
 | meterTotal | Integer | ΜΣ — total building meter | not null, column `meter_total` |
-| fixedCharge | BigDecimal(10,2) | ΕΔΑ+ΔΕΣΦΑ — fixed part | not null, column `fixed_charge` |
+| consumptionCharge | BigDecimal(10,2) | Ω — consumption-based part | not null, column `consumption_charge` |
 | meterApartment | Apartment | the apartment the floor meter belongs to (currently 1ος) | `@ManyToOne(optional = false)`, FK `meter_apartment_id`, not null |
 
-**Ω** (variable, consumption-based cost) = `amount − fixedCharge`.
+**fixedCharge** (Excel: ΕΔΑ+ΔΕΣΦΑ, the fixed part) = `amount − consumptionCharge`.
 Computed, **not stored**.
 
 ### ✅ Debt — table `debt`
@@ -163,7 +163,8 @@ apartments, Apartment does not know its categories).
 Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
 
 **METER_BASED** — monthly gas bill only:
-- Ω = amount − fixedCharge
+- Ω = consumptionCharge (stored)
+- fixedCharge = amount − consumptionCharge (computed)
 - meterApartment = Ω × (meterFloor / meterTotal) + fixedCharge / 2
 - the other participating apartment (Ισόγειο) = amount − meterApartment's share
 
@@ -188,6 +189,10 @@ Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
     with credentials, and the occupant can change. Merging them would mix
     identity/security with finance (SRP) and hard-code the one-user-per-apartment
     assumption.
+11. **Store the values entered from the source document, compute the derived
+    ones** — e.g. GasBill stores `amount` and `consumptionCharge` (Ω) as printed on
+    the gas bill and computes `fixedCharge`. Same idea as no stored totals: one
+    source of truth, nothing to drift.
 
 ---
 

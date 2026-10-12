@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,10 +40,10 @@ public class MeterBasedSplitCalculator implements SplitCalculator {
         }
 
         BigDecimal amount = gasBill.getAmount();
-        BigDecimal fixedCharge = gasBill.getFixedCharge();
-        BigDecimal variableCost = amount.subtract(fixedCharge); // Ω
+        BigDecimal consumptionCharge = gasBill.getConsumptionCharge(); // Ω
+        BigDecimal fixedCharge = amount.subtract(consumptionCharge);   // ΕΔΑ+ΔΕΣΦΑ
 
-        BigDecimal meterShare = variableCost
+        BigDecimal meterShare = consumptionCharge
                 .multiply(BigDecimal.valueOf(gasBill.getMeterFloor()))
                 .divide(BigDecimal.valueOf(gasBill.getMeterTotal()), 10, RoundingMode.HALF_UP)
                 .add(fixedCharge.divide(BigDecimal.TWO))
