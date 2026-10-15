@@ -170,6 +170,52 @@ Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
 
 ---
 
+## Bill registration and calculation
+
+**Strategy** — one calculator per SplitRule, behind one interface:
+
+```java
+interface SplitCalculator {
+    SplitRule supportedRule();
+    Map<Apartment, BigDecimal> calculate(Bill bill, Set<Apartment> participants);
+}
+```
+
+Implemented by `EqualSplitCalculator` and `MeterBasedSplitCalculator`
+(`@Component`s in `service/split`). Calculators are **pure**: no repositories, no
+Debt creation — they only return each apartment's share.
+
+**`BillService.registerBill(bill)`**, `@Transactional`:
+1. Reload the category by id (fails with "Category not found" if missing).
+2. Pick the calculator by `bill.splitRule`.
+3. Save the bill.
+4. Calculate the shares for the category's apartments.
+5. Save one Debt per apartment.
+
+Any failure rolls back everything — there is never a bill without its debts.
+
+---
+
+## Rounding rules
+
+Shares must always **sum exactly** to the bill amount.
+
+**EQUAL_SPLIT**
+- share = amount ÷ n, rounded **DOWN** (toward zero) to 2 decimals.
+- The leftover cents go one by one to the apartments in ascending id order
+  (Ισόγειο first). E.g. 100.00 ÷ 3 → 33.34 / 33.33 / 33.33.
+- Works for negative amounts too: −4.55 ÷ 2 → −2.28 / −2.27.
+
+**METER_BASED**
+- meter share = Ω × meterFloor ÷ meterTotal + fixedCharge ÷ 2, rounded
+  **HALF_UP** to 2 decimals **once, at the end** (the intermediate division keeps
+  10 decimals).
+- The other apartment gets `amount − meter share`.
+- Guards (each throws `IllegalArgumentException`): the bill must be a `GasBill`,
+  there must be exactly 2 participants, and `meterApartment` must be one of them.
+
+---
+
 ## Locked principles
 
 1. **1 Bill → N Debts** — one debt per participating apartment.
@@ -208,6 +254,13 @@ Electricity, gas faults, gas maintenance (÷2); disinfection (÷3).
   correct. Not on Category (would be null for every non-gas category), not on
   Apartment (a gas concept on an unrelated entity), and never as a hard-coded
   apartment name in the service.
-- ❓ **Where the split logic lives:** methods on the `SplitRule` enum, or a
-  calculation service that switches on the rule.
+- ✅ ~~**Where the split logic lives:** methods on the `SplitRule` enum, or a
+  calculation service that switches on the rule?~~ **Resolved:** Strategy pattern
+  — one `SplitCalculator` per rule, chosen by `BillService` (see
+  [Bill registration and calculation](#bill-registration-and-calculation)).
 - ❓ **Export format** (Excel or PDF) — after the core works.
+- ❓ **Editing / deleting a bill and its debts:** cascade from Bill to Debt, or an
+  explicit delete of the debts in the service?
+- ❓ **Bill PDFs:** store a OneDrive link, or upload the file?
+- ❓ **Gas form input:** the admin enters `amount` and Ω (`consumptionCharge`) from
+  the gas bill; form design not decided yet.

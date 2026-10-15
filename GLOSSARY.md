@@ -102,6 +102,45 @@ is a specialized version of the parent — inheritance couples the two tightly.
 separate from `Apartment` (physical unit, financial history): a password-policy
 change and a billing change should never touch the same class.
 
+### Strategy pattern
+**What:** A family of interchangeable algorithms behind one interface; the caller
+picks one at runtime instead of branching on a type.
+**Why it matters / when I used it:** `SplitCalculator` is the interface, with one
+class per `SplitRule` (`EqualSplitCalculator`, `MeterBasedSplitCalculator`);
+`BillService` picks one by `bill.getSplitRule()`. Use it when each branch is real
+logic that deserves its own class and tests, or new variants are expected. A plain
+`switch` is enough when the branches are one-liners and the set is closed.
+
+### Open/Closed Principle (OCP)
+**What:** Code should be open for extension, closed for modification: add behavior
+by adding code, not by editing working code.
+**Why it matters / when I used it:** A new split rule = a new `SplitCalculator`
+`@Component`; `BillService` stays unchanged, because it looks the calculator up by
+rule instead of switching on it.
+
+### Injecting all implementations of an interface
+**What:** A constructor parameter `List<SomeInterface>` receives **every** bean that
+implements it.
+**Why it matters / when I used it:** `BillService` takes `List<SplitCalculator>` and
+turns it into a `Map<SplitRule, SplitCalculator>` with
+`Collectors.toMap(SplitCalculator::supportedRule, Function.identity())`. Two
+calculators for the same rule make `toMap` throw, so the app fails at startup
+instead of silently picking one.
+
+### Pure function
+**What:** Same input → same output, with no side effects (no DB, no I/O, no changes
+to shared state).
+**Why it matters / when I used it:** The split calculators were designed pure: they
+only take a bill and its participants and return the shares; `BillService` does the
+saving. That makes them the easiest and most reliable code to test — no mocks, no
+DB, just input and expected output.
+
+### Pattern matching for instanceof
+**What:** `if (!(bill instanceof GasBill gasBill))` checks the type **and** binds a
+typed variable in one step (Java 16+), so no explicit cast is needed.
+**Why it matters / when I used it:** `MeterBasedSplitCalculator` uses it to reject
+a non-gas bill and then work with `gasBill` directly.
+
 ---
 
 ## 2. Persistence & Database
@@ -158,11 +197,24 @@ early warning.
 ### BigDecimal for money
 **What:** An arbitrary-precision decimal type. Unlike `double`/`float`, it represents
 decimal values exactly.
-**Why it matters / when I used it:** `Bill.amount` and `GasBill.fixedCharge` are
-`BigDecimal`. `double`/`float` store decimals as binary approximations
+**Why it matters / when I used it:** `Bill.amount` and `GasBill.consumptionCharge`
+are `BigDecimal`. `double`/`float` store decimals as binary approximations
 (`0.1 + 0.2 = 0.30000000000000004`), and the errors accumulate — unacceptable for
 money. Rule: never `double`/`float` for currency; always `BigDecimal` (or integer
 cents). Map with `@Column(precision, scale=2)`.
+
+### BigDecimal arithmetic and rounding
+**What:** `BigDecimal` is immutable and has no operators: use `add`, `subtract`,
+`multiply`, `divide`, each returning a new value. `divide` needs a scale and a
+`RoundingMode` whenever the result might not terminate.
+**Why it matters / when I used it:** In the split calculators. Rules:
+- Divide always with scale and `RoundingMode` — `10 / 3` without them throws
+  `ArithmeticException` (non-terminating decimal).
+- Multiply before dividing, and round **once** at the end, so errors don't stack.
+- Distribute the leftover cents so the shares sum exactly to the total
+  (`EqualSplitCalculator`).
+- Create values from strings: `new BigDecimal("10.01")`, never
+  `new BigDecimal(10.01)` — the `double` constructor carries its binary error in.
 
 ### enum vs entity (who defines the values?)
 **What:** Decision rule for fixed-value concepts: if the DEVELOPER defines the values
@@ -252,6 +304,16 @@ Printing a collection iterates it, which loads the lazy collection (an extra que
 or a `LazyInitializationException` outside a session). Used in `Bill`, `Debt`,
 `Payment`; `Category` leaves out `apartments`.
 
+### @Transactional and atomicity
+**What:** All-or-nothing: every DB write inside a `@Transactional` method commits
+together, and a (runtime) exception rolls back every write in the method.
+**Why it matters / when I used it:** `BillService.registerBill` saves the bill and
+then its debts; if the calculation fails after the bill is saved, the bill is rolled
+back too — never a bill without debts. Pitfall: it only works when the method is
+called from **another bean**. Spring wraps the bean in a proxy that starts the
+transaction; a call from inside the same class (self-invocation) bypasses the proxy,
+so no transaction is started.
+
 ---
 
 ## 3. Web Layer (Spring MVC & Thymeleaf)
@@ -320,6 +382,16 @@ any order.
 `CategorySeeder` is `@Order(2)`, because categories need the apartments to exist
 before they can link to them.
 
+### Mockito as a Java agent
+**SETTING.** **What:** Mockito instruments classes through a Java agent. Java 21
+warns when an agent is loaded dynamically at runtime (future JDKs will block it), so
+the agent is passed to the test JVM at startup instead.
+**Why it matters / when I used it:** In `pom.xml`, `maven-dependency-plugin` (goal
+`properties`) exposes the jar path as `${org.mockito:mockito-core:jar}`, and
+`maven-surefire-plugin` passes it with
+`<argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>`. IntelliJ picks the
+setting up after a Maven sync.
+
 ---
 
 ## 5. Docker & DevOps
@@ -358,3 +430,86 @@ variables like `${POSTGRES_PASSWORD}`.
 **Why it matters / when I used it:** Keeps DB credentials out of `docker-compose.yml`;
 `.env` is git-ignored and `.env.example` is the committed template. Its values must
 match `application-local.properties`.
+
+---
+
+## 6. Testing
+
+### Unit vs integration test (the test pyramid)
+**What:** A unit test checks one class in isolation, in memory, in milliseconds. An
+integration test runs several real parts together (Spring context, DB). The test
+pyramid: many fast unit tests at the bottom, fewer slower integration tests above.
+**Why it matters / when I used it:** The calculator and `BillService` tests are unit
+tests; `KoinoxristaApplicationTests` (`@SpringBootTest`) is an integration test that
+needs the Docker DB. Limit: a unit test with mocked repositories cannot prove that a
+rollback happened — there is no real transaction. That needs an integration test.
+
+### Arrange – Act – Assert, @Test, @BeforeEach
+**What:** Each test has three parts: set up the input (Arrange), call the code
+(Act), check the result (Assert). `@Test` marks a test method; `@BeforeEach` runs
+before **every** test, so each test starts from fresh objects (test isolation — no
+test depends on another's leftovers).
+**Why it matters / when I used it:** All test classes build their calculator and
+apartments in `@BeforeEach`. Test classes and methods are package-private (JUnit 5
+doesn't need `public`), and test names describe behavior, e.g.
+`givesLeftoverCentToLowestIdApartment`.
+
+### AssertJ
+**What:** A fluent assertion library: `assertThat(actual).…`.
+**Why it matters / when I used it:**
+- `assertThatThrownBy(...)` — check the exception type **and** its message, so the
+  test fails if the code throws for the wrong reason.
+- `isEqualByComparingTo("40.00")` for `BigDecimal` — `equals()` also compares the
+  scale, so `40.0` ≠ `40.00`; `compareTo` compares only the value.
+- `extracting(Debt::getApartment)`, `allSatisfy(...)` — check a property across a
+  whole list.
+- `isSameAs(...)` — the same instance, not just an equal one.
+
+### @ParameterizedTest + @CsvSource
+**What:** One test method run once per row of data; each CSV row becomes the method
+arguments (JUnit converts the strings to `BigDecimal`, `Integer`, …).
+**Why it matters / when I used it:** `MeterBasedSplitCalculatorTest.matchesExcelResults`
+uses real months from the gas Excel as rows (incl. Ω = 0 and a negative bill). Adding
+a case = adding a line, and the Excel is the oracle.
+
+### State-based vs interaction-based testing
+**What:** State-based: check the **return value** / resulting state.
+Interaction-based: check what the code **sent to its dependencies** (which methods
+were called, with which arguments).
+**Why it matters / when I used it:** The calculators are pure, so their tests check
+the returned shares. `BillService` returns little of interest; its job is to save a
+bill and debts, so its test checks what it passed to the repositories.
+
+### Mockito
+**What:** A library that creates fake implementations (mocks) of dependencies.
+`@Mock` creates one; `@ExtendWith(MockitoExtension.class)` initializes them.
+Stubbing: `when(...).thenReturn(...)` / `thenAnswer(...)` (compute the result from
+the arguments). Checking: `verify(mock).method(...)`, `verify(mock, never())`,
+`verifyNoInteractions(mock)`.
+**Why it matters / when I used it:** `BillServiceTest` mocks the three repositories:
+isolation (no DB), speed, control over what they return (e.g. `Optional.empty()` for
+a missing category), and observation of the calls. `billRepository.save` uses
+`thenAnswer(invocation -> invocation.getArgument(0))` to return the bill it was given.
+Strict stubs (the extension's default): a stub the test never uses fails with
+`UnnecessaryStubbingException`, which keeps tests free of dead setup.
+
+### ArgumentCaptor / @Captor
+**What:** Captures an argument passed to a mock so the test can inspect it.
+**Why it matters / when I used it:** The `List<Debt>` is built **inside**
+`registerBill` and only handed to `debtRepository.saveAll`; the captor is the only
+way to see it. `@Captor` (instead of `ArgumentCaptor.forClass`) keeps the generic
+type `ArgumentCaptor<List<Debt>>` without an unchecked cast.
+
+### Sociable vs solitary unit tests
+**What:** A solitary test replaces every collaborator with a mock; a sociable test
+uses the real collaborators where they are cheap and safe.
+**Why it matters / when I used it:** `BillServiceTest` mocks only the repositories
+and uses the **real** (pure) calculators — they need no setup, and the test then
+also checks that service and calculators work together.
+
+### ReflectionTestUtils.setField
+**What:** A Spring test helper that sets a private field by name via reflection.
+**Why it matters / when I used it:** Entities have no `setId` (by design), but tests
+need apartments with ids (ordering by id, `meterApartment` matching).
+`ReflectionTestUtils.setField(apartment, "id", 1L)` sets it without adding a setter
+to production code.

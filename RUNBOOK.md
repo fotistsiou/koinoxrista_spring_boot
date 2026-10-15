@@ -23,6 +23,27 @@ PowerShell passes `target/*.jar` to `java` literally instead of expanding it.
 
 The app listens on `http://localhost:8080` by default.
 
+## Tests
+
+From IntelliJ: click the green arrow next to a test class or method.
+
+Run all tests:
+```bash
+./mvnw test
+```
+This includes `KoinoxristaApplicationTests` (`@SpringBootTest`), which starts the
+full context and needs the Docker DB up (`docker compose up -d`). The same applies
+to `./mvnw clean package`, which runs the tests too.
+
+Run one class (the quotes are needed in PowerShell):
+```bash
+./mvnw test "-Dtest=BillServiceTest"
+```
+
+The JVM warning `Sharing is only supported for boot loader classes because
+bootstrap classpath has been appended` in IntelliJ is harmless (a side effect of
+loading the Mockito agent).
+
 ## Database
 
 PostgreSQL runs as a Docker container defined in `docker-compose.yml`. Its
