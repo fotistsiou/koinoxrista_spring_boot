@@ -9,6 +9,8 @@
 
 <p th:if="${successMessage}" th:text="${successMessage}"></p>
 
+<p><a th:href="@{/admin/gas-bills/new}">Μηνιαίος λογαριασμός αερίου →</a></p>
+
 <form th:action="@{/admin/bills}" th:object="${billForm}" method="post">
     <div th:if="${#fields.hasGlobalErrors()}">
         <p th:each="error : ${#fields.globalErrors()}" th:text="${error}"></p>
