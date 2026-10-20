@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -58,6 +59,12 @@ public class BillService {
         debtRepository.saveAll(debts);
 
         return savedBill;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Bill, List<Debt>> findBillsWithDebts() {
+        return debtRepository.findAllWithBillAndApartment().stream()
+                .collect(Collectors.groupingBy(Debt::getBill, LinkedHashMap::new, Collectors.toList()));
     }
 
     private Debt toDebt(Bill bill, Apartment apartment, BigDecimal amount) {

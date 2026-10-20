@@ -63,4 +63,10 @@ public class AdminBillController {
                 "Καταχωρίστηκε: " + saved.getCategory().getName() + ", " + saved.getAmount() + " €");
         return "redirect:/admin/bills/new";
     }
+
+    @GetMapping
+    public String listBills(Model model) {
+        model.addAttribute("billsWithDebts", billService.findBillsWithDebts());
+        return "admin/bills";
+    }
 }

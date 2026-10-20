@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Λογαριασμοί</title>
+</head>
+<body>
+<h1>Λογαριασμοί</h1>
+<p>
+    <a th:href="@{/admin/bills/new}">+ Απλός λογαριασμός</a> ·
+    <a th:href="@{/admin/gas-bills/new}">+ Λογαριασμός αερίου</a>
+</p>
+
+<p th:if="${successMessage}" th:text="${successMessage}"></p>
+
+<p th:if="${billsWithDebts.isEmpty()}">Δεν υπάρχουν λογαριασμοί.</p>
+
+<table th:unless="${billsWithDebts.isEmpty()}">
+    <thead>
+    <tr>
+        <th>Ημερομηνία</th>
+        <th>Κατηγορία</th>
+        <th>Τύπος</th>
+        <th>Ποσό</th>
+        <th>Οφειλές</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="entry : ${billsWithDebts}" th:with="bill=${entry.key}">
+        <td th:text="${#temporals.format(bill.billDate, 'dd/MM/yyyy')}"></td>
+        <td th:text="${bill.category.name}"></td>
+        <td th:text="${bill.splitRule.name() == 'METER_BASED'} ? 'Μετρητές' : 'Ισόποσα'"></td>
+        <td th:text="${#numbers.formatDecimal(bill.amount, 1, 'POINT', 2, 'COMMA')} + ' €'"></td>
+        <td>
+            <div th:each="debt : ${entry.value}"
+                 th:text="${debt.apartment.name} + ': ' + ${#numbers.formatDecimal(debt.amount, 1, 'POINT', 2, 'COMMA')} + ' €'">
+            </div>
+        </td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>
