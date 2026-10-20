@@ -141,6 +141,16 @@ typed variable in one step (Java 16+), so no explicit cast is needed.
 **Why it matters / when I used it:** `MeterBasedSplitCalculator` uses it to reject
 a non-gas bill and then work with `gasBill` directly.
 
+### Collectors.groupingBy with LinkedHashMap::new
+**What:** `groupingBy(key, mapFactory, downstream)` turns a flat list into a
+`Map<key, List<…>>`. The plain `groupingBy(key)` returns a `HashMap`, which loses
+the order; passing `LinkedHashMap::new` keeps the keys in the order they first
+appear.
+**Why it matters / when I used it:** `BillService.findBillsWithDebts` groups the
+flat debt list (already sorted newest first by the query) by bill:
+`groupingBy(Debt::getBill, LinkedHashMap::new, Collectors.toList())`, so the bills
+page keeps the query's order.
+
 ---
 
 ## 2. Persistence & Database
@@ -314,6 +324,56 @@ called from **another bean**. Spring wraps the bean in a proxy that starts the
 transaction; a call from inside the same class (self-invocation) bypasses the proxy,
 so no transaction is started.
 
+### @Transactional(readOnly = true)
+**What:** Marks a service method as read-only: Hibernate skips dirty checking and
+never flushes, and the driver/DB may optimize the transaction.
+**Why it matters / when I used it:** `BillService.findBillsWithDebts` only reads.
+It also documents intent: a read method that accidentally modifies an entity won't
+write it back.
+
+### getReferenceById
+**What:** Returns a reference (proxy) that holds only the id — **no SELECT**. The
+row is loaded only if a field other than the id is accessed.
+**Why it matters / when I used it:** The admin controllers turn the `categoryId`
+and `meterApartmentId` chosen in a form into `Category` / `Apartment` references
+to set on the new bill. Pitfall: an id that doesn't exist is not detected here, but
+later (on access or on insert, as a FK violation).
+
+### @Query and JPQL
+**What:** `@Query` puts a hand-written query on a repository method. JPQL queries
+**entities and fields** (`Debt d`, `d.bill`), not tables and columns; Hibernate
+translates it to SQL.
+**Why it matters / when I used it:** `DebtRepository.findAllWithBillAndApartment`.
+Multi-line queries use Java text blocks (`"""…"""`), so they stay readable without
+string concatenation.
+
+### N+1 problem and JOIN FETCH
+**What:** Loading N rows with 1 query, then 1 extra query per row to load a related
+entity = 1 + N queries. `join fetch` in JPQL loads the relation in the **same**
+query.
+**Why it matters / when I used it:** `debtRepository.findAll()` for the bills page
+gave 1 + N queries: one per bill and per apartment, because `@ManyToOne` is EAGER
+by default. `findAllWithBillAndApartment` uses `join fetch d.bill`,
+`join fetch b.category`, `join fetch d.apartment` and loads everything in one query.
+Spot it by counting the SELECTs in the `show-sql` log for one page load.
+
+### Persistence context (first-level cache)
+**What:** Within one transaction (one `EntityManager`), each entity is loaded at
+most once, and every reference to the same row is the **same Java object**.
+**Why it matters / when I used it:** Explains why `Bill` works as a `groupingBy` key
+without `equals`/`hashCode`: all debts of a bill point to the same `Bill` instance.
+Also why the bills page needs no extra query for `GasBill.meterApartment`: that
+apartment was already loaded by the same query (as a debt's apartment), so
+Hibernate takes it from the persistence context.
+
+### Open Session in View (spring.jpa.open-in-view)
+**SETTING.** **What:** Keeps the Hibernate session open for the whole web request,
+including view rendering. Enabled by default (Spring logs a warning at startup).
+**Why it matters / when I used it:** It lets lazy loading happen silently while
+Thymeleaf renders, which can hide N+1 queries in the view. Not set in this project
+yet (so it is on); we will disable it later
+(`spring.jpa.open-in-view=false`) and load what a page needs explicitly.
+
 ---
 
 ## 3. Web Layer (Spring MVC & Thymeleaf)
@@ -337,6 +397,92 @@ sending it to the browser.
 **Why it matters / when I used it:** Renders `apartments.html` with real data. Unlike
 a client-side SPA, the page arrives complete — closest analogue to PHP echoing HTML,
 which eases the transition.
+
+### DTO / form object
+**What:** A plain class shaped like the form (Data Transfer Object), separate from
+the entity. The form binds to it; the controller then builds the entity.
+**Why it matters / when I used it:** Forms bind to `BillForm` / `GasBillForm`
+(package `dto`), not to `Bill`:
+- Form shape ≠ entity shape: the form sends a `categoryId`, the entity holds a
+  `Category`.
+- Mass-assignment protection: binding to the entity would let a crafted POST set
+  any field (`id`, `splitRule`, …); the DTO has only the fields the form offers.
+- Input rules (validation, messages) live with the input, not on the entity.
+
+A class with getters/setters, not a `record`: the GET handler needs an **empty**
+instance for the blank form, and Spring fills it field by field through setters.
+
+### Bean Validation
+**What:** Declarative input rules as annotations. Jakarta Bean Validation is the
+spec; Hibernate Validator implements it; `spring-boot-starter-validation` brings it
+in.
+**Why it matters / when I used it:** On the form DTOs:
+- `@NotNull` on every field.
+- `@Digits(integer = 8, fraction = 2)` on money — matches `precision = 10,
+  scale = 2` in the DB.
+- `@Positive` on `meterTotal` (it is a divisor), `@PositiveOrZero` on `meterFloor`.
+- **No** `@Positive` on money: credit bills are negative.
+
+Validation expresses domain rules, so each annotation needs a domain reason.
+
+### @Valid + BindingResult
+**What:** `@Valid` triggers validation of the bound object; the errors land in the
+`BindingResult` instead of throwing.
+**Why it matters / when I used it:** In both admin controllers. Rules:
+`BindingResult` must come **directly after** the `@Valid` parameter (otherwise
+Spring throws instead). On errors, **return the view** (not a redirect), so the
+entered values and the messages stay on the page.
+`bindingResult.reject("billError", message)` adds a global (not field) error — used
+when `BillService` throws `IllegalArgumentException`.
+
+### Post/Redirect/Get (PRG)
+**What:** After a successful POST, answer with a redirect; the browser then does a
+GET.
+**Why it matters / when I used it:** Both forms return `redirect:…` on success. F5
+then repeats the harmless GET, not the POST — the same bill cannot be submitted
+twice. Same idea as idempotency.
+
+### Flash attributes
+**What:** Model attributes that survive exactly **one** redirect (stored in the
+session, removed after the next request).
+**Why it matters / when I used it:**
+`redirectAttributes.addFlashAttribute("successMessage", …)` shows "Καταχωρίστηκε…"
+on the page after the redirect, and it disappears on refresh.
+
+### @ModelAttribute on a method
+**What:** A controller method annotated with `@ModelAttribute("name")` runs before
+**every** handler of that controller and adds its return value to the model.
+**Why it matters / when I used it:** `AdminGasBillController` adds the
+`categories` and `apartments` dropdown data once this way, so the GET, the error
+paths and the POST all have it without repeating `model.addAttribute`.
+(`AdminBillController` still adds `categories` by hand in each path.)
+
+### @RequestMapping on the class
+**What:** A common URL prefix for all handlers of a controller; method mappings are
+relative to it.
+**Why it matters / when I used it:** `AdminBillController` is
+`@RequestMapping("/admin/bills")`: `@GetMapping` → `/admin/bills`,
+`@GetMapping("/new")` → `/admin/bills/new`, `@PostMapping` → POST `/admin/bills`.
+
+### Thymeleaf forms
+**What:** The form-related Thymeleaf syntax used in the admin templates:
+- `th:object="${billForm}"` + `*{…}` — selection expressions relative to the form
+  object.
+- `th:field="*{amount}"` — sets the input's `name`, `id` and `value` in one go.
+  The templates also write `id` explicitly, so `<label for="…">` resolves in the
+  IDE.
+- `#fields.hasErrors('amount')` / `th:errors="*{amount}"` — field errors;
+  `#fields.globalErrors()` — errors from `bindingResult.reject`.
+- `@{/admin/bills}` — context-relative URLs. With Spring Security added later,
+  `th:action` will also insert the CSRF token as a hidden field.
+- `#temporals.format(date, 'dd/MM/yyyy')`, `#numbers.formatDecimal(…)` — date and
+  number formatting.
+- `th:with="bill=${entry.key}"` — a local variable.
+- Iterating a `Map`: `th:each="entry : ${billsWithDebts}"` gives `entry.key` and
+  `entry.value`.
+
+**Why it matters / when I used it:** `bill-form.html`, `gas-bill-form.html`,
+`bills.html`.
 
 ---
 

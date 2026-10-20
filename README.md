@@ -36,6 +36,11 @@ it for their own building), not as a product for third parties.
 The app starts on `http://localhost:8080` by default. The apartment listing is at
 `/apartments`.
 
+Admin pages:
+- `/admin/bills` — all bills with their debts per apartment
+- `/admin/bills/new` — register a plain bill (equal split)
+- `/admin/gas-bills/new` — register the monthly gas bill (meter-based split)
+
 ## Project structure
 
 Standard Maven/Spring Boot layout. Application code lives under `src/main/java`,

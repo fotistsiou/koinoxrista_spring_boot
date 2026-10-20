@@ -216,6 +216,23 @@ Shares must always **sum exactly** to the bill amount.
 
 ---
 
+## Admin pages
+
+| URL | Page | Result |
+|---|---|---|
+| `/admin/bills/new` | plain bill form: category, amount, date | `Bill` with `EQUAL_SPLIT` |
+| `/admin/gas-bills/new` | monthly gas bill form: category, amount, Ω (`consumptionCharge`), `meterFloor`, `meterTotal`, meter apartment, date | `GasBill` with `METER_BASED` |
+| `/admin/bills` | all bills, newest first, each with its debts per apartment | — |
+
+- **The form type sets the SplitRule**; the admin never chooses it, so an invalid
+  rule/type combination (e.g. a plain `Bill` with `METER_BASED`) cannot be
+  submitted.
+- After a successful registration each form redirects back to **itself** (empty
+  form plus a success message), ready for the next bill. Validation errors and
+  calculator errors re-show the form with the entered values.
+
+---
+
 ## Locked principles
 
 1. **1 Bill → N Debts** — one debt per participating apartment.
@@ -260,7 +277,14 @@ Shares must always **sum exactly** to the bill amount.
   [Bill registration and calculation](#bill-registration-and-calculation)).
 - ❓ **Export format** (Excel or PDF) — after the core works.
 - ❓ **Editing / deleting a bill and its debts:** cascade from Bill to Debt, or an
-  explicit delete of the debts in the service?
+  explicit delete of the debts in the service? Note the inconsistency: the Debt
+  section says "permanent record, never deleted", which contradicts deleting a
+  bill's debts. One of the two must give way when this is decided (e.g. "deleted
+  only together with its bill").
+- ❓ **Gas form category:** the category is a dropdown, so choosing a non-gas
+  category for a gas bill would still be calculated (with that category's
+  apartments). Accepted for now (single admin). Options later: mark categories as
+  meter-based, or filter the dropdown.
 - ❓ **Bill PDFs:** store a OneDrive link, or upload the file?
 - ❓ **Gas form input:** the admin enters `amount` and Ω (`consumptionCharge`) from
   the gas bill; form design not decided yet.
