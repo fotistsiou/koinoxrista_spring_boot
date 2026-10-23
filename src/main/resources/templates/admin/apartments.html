@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Υπόλοιπα διαμερισμάτων</title>
+</head>
+<body>
+<h1>Υπόλοιπα διαμερισμάτων</h1>
+<p><a th:href="@{/admin/bills}">Λογαριασμοί →</a></p>
+
+<p th:if="${successMessage}" th:text="${successMessage}"></p>
+
+<table>
+    <thead>
+    <tr>
+        <th>Διαμέρισμα</th>
+        <th>Οφειλές</th>
+        <th>Πληρωμές</th>
+        <th>Υπόλοιπο</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="row : ${balances}">
+        <td th:text="${row.apartmentName()}"></td>
+        <td th:text="${#numbers.formatDecimal(row.totalDebts(), 1, 'POINT', 2, 'COMMA')} + ' €'"></td>
+        <td th:text="${#numbers.formatDecimal(row.totalPayments(), 1, 'POINT', 2, 'COMMA')} + ' €'"></td>
+        <td>
+            <span th:text="${#numbers.formatDecimal(row.balance(), 1, 'POINT', 2, 'COMMA')} + ' €'"></span>
+            <span th:if="${row.balance().signum() > 0}">(χρωστάει)</span>
+            <span th:if="${row.balance().signum() < 0}">(πίστωση)</span>
+            <span th:if="${row.balance().signum() == 0}">(εξοφλημένο)</span>
+        </td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>
