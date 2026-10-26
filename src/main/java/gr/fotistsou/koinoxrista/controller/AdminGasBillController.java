@@ -5,6 +5,7 @@ import gr.fotistsou.koinoxrista.entity.Apartment;
 import gr.fotistsou.koinoxrista.entity.Bill;
 import gr.fotistsou.koinoxrista.entity.Category;
 import gr.fotistsou.koinoxrista.entity.GasBill;
+import gr.fotistsou.koinoxrista.enums.SplitRule;
 import gr.fotistsou.koinoxrista.repository.ApartmentRepository;
 import gr.fotistsou.koinoxrista.repository.CategoryRepository;
 import gr.fotistsou.koinoxrista.service.BillService;
@@ -38,7 +39,7 @@ public class AdminGasBillController {
 
     @ModelAttribute("categories")
     public List<Category> categories() {
-        return categoryRepository.findAll();
+        return categoryRepository.findBySplitRuleOrderByNameAsc(SplitRule.METER_BASED);
     }
 
     @ModelAttribute("apartments")

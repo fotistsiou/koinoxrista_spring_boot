@@ -2,6 +2,8 @@ package gr.fotistsou.koinoxrista.controller;
 
 import gr.fotistsou.koinoxrista.dto.BillForm;
 import gr.fotistsou.koinoxrista.entity.Bill;
+import gr.fotistsou.koinoxrista.entity.Category;
+import gr.fotistsou.koinoxrista.enums.SplitRule;
 import gr.fotistsou.koinoxrista.repository.CategoryRepository;
 import gr.fotistsou.koinoxrista.service.BillService;
 import jakarta.validation.Valid;
@@ -13,6 +15,8 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin/bills")
@@ -26,20 +30,22 @@ public class AdminBillController {
         this.billService = billService;
     }
 
+    @ModelAttribute("categories")
+    public List<Category> categories() {
+        return categoryRepository.findBySplitRuleOrderByNameAsc(SplitRule.EQUAL_SPLIT);
+    }
+
     @GetMapping("/new")
     public String showForm(Model model) {
         model.addAttribute("billForm", new BillForm());
-        model.addAttribute("categories", categoryRepository.findAll());
         return "admin/bill-form";
     }
 
     @PostMapping
     public String registerBill(@Valid @ModelAttribute("billForm") BillForm billForm,
                                BindingResult bindingResult,
-                               Model model,
                                RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
-            model.addAttribute("categories", categoryRepository.findAll());
             return "admin/bill-form";
         }
 
@@ -53,7 +59,6 @@ public class AdminBillController {
             saved = billService.registerBill(bill);
         } catch (IllegalArgumentException e) {
             bindingResult.reject("billError", e.getMessage());
-            model.addAttribute("categories", categoryRepository.findAll());
             return "admin/bill-form";
         }
 
