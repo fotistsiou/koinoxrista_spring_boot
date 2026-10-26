@@ -5,7 +5,6 @@ import gr.fotistsou.koinoxrista.entity.Apartment;
 import gr.fotistsou.koinoxrista.entity.Bill;
 import gr.fotistsou.koinoxrista.entity.Category;
 import gr.fotistsou.koinoxrista.entity.GasBill;
-import gr.fotistsou.koinoxrista.enums.SplitRule;
 import gr.fotistsou.koinoxrista.repository.ApartmentRepository;
 import gr.fotistsou.koinoxrista.repository.CategoryRepository;
 import gr.fotistsou.koinoxrista.service.BillService;
@@ -68,7 +67,6 @@ public class AdminGasBillController {
         bill.setMeterTotal(form.getMeterTotal());
         bill.setMeterApartment(apartmentRepository.getReferenceById(form.getMeterApartmentId()));
         bill.setBillDate(form.getBillDate());
-        bill.setSplitRule(SplitRule.METER_BASED);
         bill.setCategory(categoryRepository.getReferenceById(form.getCategoryId()));
 
         Bill saved;

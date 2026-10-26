@@ -2,7 +2,6 @@ package gr.fotistsou.koinoxrista.controller;
 
 import gr.fotistsou.koinoxrista.dto.BillForm;
 import gr.fotistsou.koinoxrista.entity.Bill;
-import gr.fotistsou.koinoxrista.enums.SplitRule;
 import gr.fotistsou.koinoxrista.repository.CategoryRepository;
 import gr.fotistsou.koinoxrista.service.BillService;
 import jakarta.validation.Valid;
@@ -47,7 +46,6 @@ public class AdminBillController {
         Bill bill = new Bill();
         bill.setAmount(billForm.getAmount());
         bill.setBillDate(billForm.getBillDate());
-        bill.setSplitRule(SplitRule.EQUAL_SPLIT);
         bill.setCategory(categoryRepository.getReferenceById(billForm.getCategoryId()));
 
         Bill saved;

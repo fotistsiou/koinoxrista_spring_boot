@@ -1,5 +1,6 @@
 package gr.fotistsou.koinoxrista.entity;
 
+import gr.fotistsou.koinoxrista.enums.SplitRule;
 import jakarta.persistence.*;
 
 import java.util.HashSet;
@@ -14,6 +15,10 @@ public class Category {
 
     @Column(unique = true, nullable = false)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "split_rule", nullable = false)
+    private SplitRule splitRule;
 
     @ManyToMany
     @JoinTable(
@@ -35,6 +40,14 @@ public class Category {
         this.name = name;
     }
 
+    public SplitRule getSplitRule() {
+        return splitRule;
+    }
+
+    public void setSplitRule(SplitRule splitRule) {
+        this.splitRule = splitRule;
+    }
+
     public Set<Apartment> getApartments() {
         return apartments;
     }
@@ -48,6 +61,7 @@ public class Category {
         return "Category{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
+                ", splitRule=" + splitRule +
                 '}';
     }
 }

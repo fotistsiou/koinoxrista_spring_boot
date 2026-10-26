@@ -1,9 +1,6 @@
 package gr.fotistsou.koinoxrista.service;
 
-import gr.fotistsou.koinoxrista.entity.Apartment;
-import gr.fotistsou.koinoxrista.entity.Bill;
-import gr.fotistsou.koinoxrista.entity.Category;
-import gr.fotistsou.koinoxrista.entity.Debt;
+import gr.fotistsou.koinoxrista.entity.*;
 import gr.fotistsou.koinoxrista.enums.SplitRule;
 import gr.fotistsou.koinoxrista.repository.BillRepository;
 import gr.fotistsou.koinoxrista.repository.CategoryRepository;
@@ -59,8 +56,8 @@ class BillServiceTest {
     @Test
     void createsOneDebtPerParticipantAndSavesThem() {
         // Arrange
-        Category electricity = category(10L, groundFloor, firstFloor);
-        Bill bill = bill("80.00", SplitRule.EQUAL_SPLIT, categoryReference(10L));
+        Category electricity = category(10L, SplitRule.EQUAL_SPLIT, groundFloor, firstFloor);
+        Bill bill = bill("80.00", categoryReference(10L));
         when(categoryRepository.findById(10L)).thenReturn(Optional.of(electricity));
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -78,11 +75,12 @@ class BillServiceTest {
             assertThat(debt.getAmount()).isEqualByComparingTo("40.00");
         });
         assertThat(saved.getCategory()).isSameAs(electricity);
+        assertThat(saved.getSplitRule()).isEqualTo(SplitRule.EQUAL_SPLIT);
     }
 
     @Test
     void savesNothingWhenCategoryDoesNotExist() {
-        Bill bill = bill("80.00", SplitRule.EQUAL_SPLIT, categoryReference(99L));
+        Bill bill = bill("80.00", categoryReference(99L));
         when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> billService.registerBill(bill))
@@ -95,9 +93,8 @@ class BillServiceTest {
 
     @Test
     void savesNoDebtsWhenCalculatorRejectsTheBill() {
-        // METER_BASED needs a GasBill; a plain Bill must be rejected by the calculator
-        Category gas = category(20L, groundFloor, firstFloor);
-        Bill plainBill = bill("51.61", SplitRule.METER_BASED, categoryReference(20L));
+        Category gas = category(20L, SplitRule.METER_BASED, groundFloor, firstFloor);
+        Bill plainBill = bill("51.61", categoryReference(20L));
         when(categoryRepository.findById(20L)).thenReturn(Optional.of(gas));
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -107,6 +104,21 @@ class BillServiceTest {
 
         verify(billRepository).save(plainBill);
         verifyNoInteractions(debtRepository);
+    }
+
+    @Test
+    void rejectsGasBillInEqualSplitCategory() {
+        Category electricity = category(10L, SplitRule.EQUAL_SPLIT, groundFloor, firstFloor);
+        GasBill gasBill = new GasBill();
+        gasBill.setAmount(new BigDecimal("51.61"));
+        gasBill.setCategory(categoryReference(10L));
+        when(categoryRepository.findById(10L)).thenReturn(Optional.of(electricity));
+
+        assertThatThrownBy(() -> billService.registerBill(gasBill))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("meter-based category");
+
+        verifyNoInteractions(billRepository, debtRepository);
     }
 
     // --- test helpers ---
@@ -125,16 +137,16 @@ class BillServiceTest {
         return category;
     }
 
-    private Category category(Long id, Apartment... apartments) {
+    private Category category(Long id, SplitRule splitRule, Apartment... apartments) {
         Category category = categoryReference(id);
+        category.setSplitRule(splitRule);
         category.getApartments().addAll(List.of(apartments));
         return category;
     }
 
-    private Bill bill(String amount, SplitRule splitRule, Category category) {
+    private Bill bill(String amount, Category category) {
         Bill bill = new Bill();
         bill.setAmount(new BigDecimal(amount));
-        bill.setSplitRule(splitRule);
         bill.setCategory(category);
         return bill;
     }

@@ -1,9 +1,6 @@
 package gr.fotistsou.koinoxrista.service;
 
-import gr.fotistsou.koinoxrista.entity.Apartment;
-import gr.fotistsou.koinoxrista.entity.Bill;
-import gr.fotistsou.koinoxrista.entity.Category;
-import gr.fotistsou.koinoxrista.entity.Debt;
+import gr.fotistsou.koinoxrista.entity.*;
 import gr.fotistsou.koinoxrista.enums.SplitRule;
 import gr.fotistsou.koinoxrista.repository.BillRepository;
 import gr.fotistsou.koinoxrista.repository.CategoryRepository;
@@ -43,7 +40,14 @@ public class BillService {
         Category category = categoryRepository.findById(bill.getCategory().getId())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Category not found: " + bill.getCategory().getId()));
+
+        if (bill instanceof GasBill && category.getSplitRule() != SplitRule.METER_BASED) {
+            throw new IllegalArgumentException(
+                    "A gas bill needs a meter-based category, got: " + category.getName());
+        }
+
         bill.setCategory(category);
+        bill.setSplitRule(category.getSplitRule());
 
         SplitCalculator calculator = calculators.get(bill.getSplitRule());
         if (calculator == null) {
