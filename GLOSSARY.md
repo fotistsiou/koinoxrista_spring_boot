@@ -151,6 +151,26 @@ flat debt list (already sorted newest first by the query) by bill:
 `groupingBy(Debt::getBill, LinkedHashMap::new, Collectors.toList())`, so the bills
 page keeps the query's order.
 
+### Java record
+**What:** An immutable data carrier: `record ApartmentBalance(Long apartmentId, …)`
+generates final fields, the canonical constructor, accessors **without** `get`
+(`apartmentId()`), and value-based `equals` / `hashCode` / `toString`. A **compact
+constructor** (`public ApartmentBalance { … }`, no parameter list) normalizes the
+values before they are assigned.
+**Why it matters / when I used it:** `ApartmentBalance` is a record; its compact
+constructor turns `null` sums into `0`, and `balance()` is an extra method. Use a
+record for read-only data (query results). Use a class when an object is filled
+step by step (forms: empty instance + setters) or must be mutable (JPA entities need
+a no-args constructor and setters). Packages are named by **role** (`dto`), not by
+language construct, so the record sits next to the form classes.
+
+### BigDecimal.signum()
+**What:** Returns `-1`, `0` or `1` for a negative, zero or positive value.
+**Why it matters / when I used it:** The safe sign check for money:
+`balance.signum() > 0` = owes. `equals(BigDecimal.ZERO)` would be wrong, because
+`equals` also compares the scale (`0.00` ≠ `0`). Used in the balances page and to
+prefill the payment amount only when the apartment owes.
+
 ---
 
 ## 2. Persistence & Database
@@ -374,6 +394,37 @@ Thymeleaf renders, which can hide N+1 queries in the view. Not set in this proje
 yet (so it is on); we will disable it later
 (`spring.jpa.open-in-view=false`) and load what a page needs explicitly.
 
+### Aggregation in the database
+**What:** Sums, counts and grouping (`SUM`, `COUNT`, `GROUP BY`) run in SQL; the DB
+returns one small row per result instead of every detail row.
+**Why it matters / when I used it:** `ApartmentRepository.findAllBalances` returns
+one row per apartment with its totals. Loading every debt and payment into Java
+just to sum them with streams moves far more data and gets slower as history grows.
+
+### Join fan-out
+**What:** Joining one parent to **two** child tables produces every combination of
+their rows: an apartment with 10 debts and 5 payments gives 50 rows, so each debt is
+counted 5 times and each payment 10 times in a `SUM`.
+**Why it matters / when I used it:** `findAllBalances` avoids it with one scalar
+subquery per sum — `(select sum(d.amount) from Debt d where d.apartment = a)` and
+the same for `Payment` — instead of `join` + `sum` over both tables.
+
+### Constructor expression (select new …)
+**What:** In JPQL, `select new com.example.Dto(a.id, …)` builds one DTO per result
+row by calling its constructor.
+**Why it matters / when I used it:** `findAllBalances` returns
+`List<ApartmentBalance>` directly. The class needs its **fully qualified** name
+(`gr.fotistsou.koinoxrista.dto.ApartmentBalance`): JPQL is a string parsed by
+Hibernate and doesn't see Java imports. Entities are known by their simple name
+(`Debt`, `Payment`) because Hibernate registered them.
+
+### SUM returns NULL on zero rows
+**What:** In SQL/JPQL, `SUM` over no rows returns `NULL`, not `0`.
+**Why it matters / when I used it:** An apartment with no payments yet gets
+`totalPayments = null`; `null.subtract(…)` would throw a `NullPointerException`.
+The `ApartmentBalance` compact constructor replaces `null` with `BigDecimal.ZERO`
+(SQL alternative: `coalesce(sum(…), 0)`).
+
 ---
 
 ## 3. Web Layer (Spring MVC & Thymeleaf)
@@ -484,6 +535,29 @@ relative to it.
 **Why it matters / when I used it:** `bill-form.html`, `gas-bill-form.html`,
 `bills.html`.
 
+### @RequestParam and query strings
+**What:** `@RequestParam` binds a query-string parameter (`?apartmentId=2`) to a
+handler argument; `required = false` makes it optional (`null` when absent).
+Thymeleaf builds such links with `@{/path(name=${value})}`.
+**Why it matters / when I used it:** The balances page links each row to
+`@{/admin/payments/new(apartmentId=${row.apartmentId()})}`;
+`AdminPaymentController.showForm(@RequestParam(required = false) Long apartmentId, …)`
+uses it to prefill the form, and still works when opened without it.
+
+### Prefilling a form
+**What:** Whatever is set on the form object before the view renders shows up in
+the inputs, because `th:field` reads the values from it.
+**Why it matters / when I used it:** `showForm` sets today's date, the apartment and
+(only if it owes) the current balance on a new `PaymentForm` — the admin usually
+just clicks "Καταχώριση".
+
+### @Positive / @PastOrPresent as domain rules
+**What:** Bean Validation constraints: `@Positive` = greater than 0;
+`@PastOrPresent` = a date today or earlier.
+**Why it matters / when I used it:** On `PaymentForm`: a payment is money received,
+so its amount is positive (unlike bill amounts, which may be negative); and a
+payment can't have happened in the future.
+
 ---
 
 ## 4. Configuration & Tooling
@@ -537,6 +611,15 @@ the agent is passed to the test JVM at startup instead.
 `maven-surefire-plugin` passes it with
 `<argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>`. IntelliJ picks the
 setting up after a Maven sync.
+
+### IDE false positives
+**TOOLING.** **What:** An IDE inspection that reports an error the compiler or the
+framework does not.
+**Why it matters / when I used it:** IntelliJ's "Query language checks" mis-typed
+the `SUM` subqueries in `findAllBalances`. Hibernate validates every `@Query` at
+startup, so a broken query would stop the app anyway; the inspection was lowered to
+**Warning** instead of disabled, so it still helps elsewhere. Rule: when the IDE and
+the running app disagree, the running app wins.
 
 ---
 

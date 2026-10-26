@@ -223,6 +223,8 @@ Shares must always **sum exactly** to the bill amount.
 | `/admin/bills/new` | plain bill form: category, amount, date | `Bill` with `EQUAL_SPLIT` |
 | `/admin/gas-bills/new` | monthly gas bill form: category, amount, Ω (`consumptionCharge`), `meterFloor`, `meterTotal`, meter apartment, date | `GasBill` with `METER_BASED` |
 | `/admin/bills` | all bills, newest first, each with its debts per apartment | — |
+| `/admin/apartments` | each apartment with total debts, total payments and balance, plus a "Πληρωμή" link per row | — |
+| `/admin/payments/new` | payment form: apartment, amount, date | `Payment` |
 
 - **The form type sets the SplitRule**; the admin never chooses it, so an invalid
   rule/type combination (e.g. a plain `Bill` with `METER_BASED`) cannot be
@@ -230,6 +232,38 @@ Shares must always **sum exactly** to the bill amount.
 - After a successful registration each form redirects back to **itself** (empty
   form plus a success message), ready for the next bill. Validation errors and
   calculator errors re-show the form with the entered values.
+- **Balances page** (`/admin/apartments`): balance > 0 = owes (χρωστάει),
+  < 0 = credit / overpayment (πίστωση), 0 = settled (εξοφλημένο).
+- **Payment form** (`/admin/payments/new`): the date is always prefilled with
+  today. Opened from the balances page via `?apartmentId=…`, it is also prefilled
+  with that apartment and, **only if the apartment owes**, with its current balance
+  as the amount. After saving it redirects to `/admin/apartments` with a success
+  message.
+
+---
+
+## Balance calculation
+
+**balance = Σ(debts) − Σ(payments)** per apartment — never stored (principle 6).
+
+- Computed **in the database** by `ApartmentRepository.findAllBalances`, with
+  **one scalar subquery per sum** (one over `Debt`, one over `Payment`). Never one
+  query that joins both debts and payments and then sums: every debt row would be
+  repeated once per payment row (join fan-out), inflating both totals.
+- `SUM` over no rows returns `NULL` (an apartment without debts or payments); the
+  `ApartmentBalance` record turns it into `0`.
+- `ApartmentBalance.balance()` = `totalDebts − totalPayments`.
+
+## Payment rules
+
+- **Amount must be positive** — a payment is money received. Refunds, if ever
+  needed, are a separate concept, not a negative payment.
+- **Date cannot be in the future.**
+- **Overpayment needs no special handling** — it shows up as a negative balance
+  (principle 5).
+- **No PaymentService, on purpose:** registering a payment has no business logic,
+  so `AdminPaymentController` saves through `PaymentRepository` directly (no
+  pass-through services).
 
 ---
 
