@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Νέα πληρωμή</title>
+</head>
+<body>
+<h1>Νέα πληρωμή</h1>
+<p><a th:href="@{/admin/apartments}">← Υπόλοιπα</a></p>
+
+<form th:action="@{/admin/payments}" th:object="${paymentForm}" method="post">
+
+    <div>
+        <label for="apartmentId">Διαμέρισμα</label>
+        <select id="apartmentId" th:field="*{apartmentId}">
+            <option value="">-- Επίλεξε διαμέρισμα --</option>
+            <option th:each="apartment : ${apartments}"
+                    th:value="${apartment.id}" th:text="${apartment.name}"></option>
+        </select>
+        <span th:if="${#fields.hasErrors('apartmentId')}" th:errors="*{apartmentId}"></span>
+    </div>
+
+    <div>
+        <label for="amount">Ποσό (€)</label>
+        <input id="amount" type="number" step="0.01" th:field="*{amount}">
+        <span th:if="${#fields.hasErrors('amount')}" th:errors="*{amount}"></span>
+    </div>
+
+    <div>
+        <label for="paymentDate">Ημερομηνία πληρωμής</label>
+        <input id="paymentDate" type="date" th:field="*{paymentDate}">
+        <span th:if="${#fields.hasErrors('paymentDate')}" th:errors="*{paymentDate}"></span>
+    </div>
+
+    <button type="submit">Καταχώριση</button>
+</form>
+</body>
+</html>

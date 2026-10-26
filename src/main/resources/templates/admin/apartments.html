@@ -17,6 +17,7 @@
         <th>Οφειλές</th>
         <th>Πληρωμές</th>
         <th>Υπόλοιπο</th>
+        <th>Ενέργειες</th>
     </tr>
     </thead>
     <tbody>
@@ -29,6 +30,9 @@
             <span th:if="${row.balance().signum() > 0}">(χρωστάει)</span>
             <span th:if="${row.balance().signum() < 0}">(πίστωση)</span>
             <span th:if="${row.balance().signum() == 0}">(εξοφλημένο)</span>
+        </td>
+        <td>
+            <a th:href="@{/admin/payments/new(apartmentId=${row.apartmentId()})}">Πληρωμή</a>
         </td>
     </tr>
     </tbody>
