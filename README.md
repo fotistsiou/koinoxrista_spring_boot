@@ -38,6 +38,7 @@ The app starts on `http://localhost:8080` by default. The apartment listing is a
 
 Admin pages:
 - `/admin/apartments` — balance per apartment (debts, payments, balance)
+- `/admin/categories` — categories with their split rule and apartments (create / edit)
 - `/admin/bills` — all bills with their debts per apartment
 - `/admin/bills/new` — register a plain bill (equal split)
 - `/admin/gas-bills/new` — register the monthly gas bill (meter-based split)

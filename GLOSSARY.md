@@ -171,6 +171,25 @@ language construct, so the record sits next to the form classes.
 `equals` also compares the scale (`0.00` ≠ `0`). Used in the balances page and to
 prefill the payment amount only when the apartment owes.
 
+### Enum with fields
+**What:** Enum constants can carry data: each constant calls the enum's constructor
+(`EQUAL_SPLIT("Ισόποσα")`), which stores it in a `final` field. The constructor is
+implicitly private — no code outside the enum can create new constants.
+**Why it matters / when I used it:** `SplitRule` has a Greek `label` for the UI
+(`${rule.label}` in Thymeleaf). With `@Enumerated(STRING)` the DB still stores the
+constant **name** (`EQUAL_SPLIT`), so the label can change freely without touching
+existing rows.
+
+### Defense in depth
+**What:** Enforce the same rule at more than one layer, so one missing check doesn't
+let bad data through.
+**Why it matters / when I used it:** The filtered dropdowns and the form validation
+are conveniences for the user; the same rules are enforced again in the service —
+the `BillService` guard (gas bill ⇒ `METER_BASED` category) and the
+`CategoryService` check (`METER_BASED` ⇒ exactly 2 apartments). Data can reach the
+server without the form (a crafted POST, another caller, a future API), and the
+service is the last line before the DB.
+
 ---
 
 ## 2. Persistence & Database
@@ -425,6 +444,39 @@ Hibernate and doesn't see Java imports. Entities are known by their simple name
 The `ApartmentBalance` compact constructor replaces `null` with `BigDecimal.ZERO`
 (SQL alternative: `coalesce(sum(…), 0)`).
 
+### @EntityGraph(attributePaths = …)
+**What:** Tells Spring Data to load the listed (lazy) associations in the same
+query, without writing JPQL.
+**Why it matters / when I used it:** `CategoryRepository.findAllByOrderByNameAsc()`
+with `@EntityGraph(attributePaths = "apartments")` loads every category with its
+apartments in one query — without it, the categories page would run one extra query
+per category to show its apartments (N+1). `findWithApartmentsById` does the same
+for the edit form. In a derived query name, the text between `find` and `By`
+(`WithApartments`) is ignored, so it can be used to describe the variant.
+
+### @OrderBy on a collection
+**What:** `@OrderBy("id")` on a collection mapping makes Hibernate load it sorted
+(and keep that order in the `Set`, using a `LinkedHashSet`).
+**Why it matters / when I used it:** `Category.apartments` — the categories page
+lists the apartments as Ισόγειο, 1ος, 2ος instead of a random `HashSet` order.
+
+### exists… derived queries
+**What:** `existsBy…` derived queries return a `boolean` and stop at the first
+match, cheaper than loading the entity.
+**Why it matters / when I used it:** Category name uniqueness:
+`existsByName(name)` on create, `existsByNameAndIdNot(name, id)` on edit, so a
+category doesn't conflict with **itself** when saved unchanged. The DB unique
+constraint stays as the final safety net.
+
+### Managed entities and dirty checking
+**What:** Inside a transaction, an entity loaded by `findById` is **managed**:
+Hibernate remembers its state and writes any changes automatically at commit
+(dirty checking). `save()` is still needed for **new** entities (to persist them).
+**Why it matters / when I used it:** `CategoryService.save` changes the name, rule
+and apartments of a loaded category; the UPDATE happens at commit even without
+`save()`. (The method calls `save()` for both cases, which is harmless for a managed
+entity, and needed for a new one.)
+
 ---
 
 ## 3. Web Layer (Spring MVC & Thymeleaf)
@@ -557,6 +609,71 @@ just clicks "Καταχώριση".
 **Why it matters / when I used it:** On `PaymentForm`: a payment is money received,
 so its amount is positive (unlike bill amounts, which may be negative); and a
 payment can't have happened in the future.
+
+### @PathVariable vs @RequestParam
+**What:** `@PathVariable` reads a part of the path (`/admin/categories/3/edit` →
+`id = 3`); `@RequestParam` reads the query string (`?apartmentId=1`).
+**Why it matters / when I used it:** The path **identifies the resource** (which
+category is edited); the query string carries **optional input** (which apartment
+to prefill on the payment form).
+
+### Id of the edited record comes from the URL
+**What:** On edit, the record's id is taken from the URL (`POST
+/admin/categories/{id}`), never from a hidden form field.
+**Why it matters / when I used it:** `CategoryForm` has no `id` field. A hidden id
+is just more user input that could be changed to edit another record; the URL makes
+the target explicit, and is where authorization checks will attach later.
+
+### One template and one form for create and edit
+**What:** Create and edit share `category-form.html` and `CategoryForm`; only the
+POST target differs: `POST /admin/categories` (create) vs
+`POST /admin/categories/{id}` (update).
+**Why it matters / when I used it:** The template switches title and `th:action`
+on whether `categoryId` is in the model. Both endpoints call one private `save`
+method in the controller, so validation and redirect logic exist once.
+
+### ResponseStatusException for a missing record
+**What:** `throw new ResponseStatusException(HttpStatus.NOT_FOUND)` makes Spring
+answer with that HTTP status.
+**Why it matters / when I used it:** `/admin/categories/999/edit` returns **404**
+(the resource doesn't exist), not a 500 (server error) from an unhandled exception.
+
+### rejectValue vs reject
+**What:** `bindingResult.rejectValue("name", code, message)` attaches an error to a
+**field** (shown next to it with `th:errors="*{name}"`);
+`bindingResult.reject(code, message)` adds a **global** error for the whole form.
+**Why it matters / when I used it:** The duplicate category name is a field error
+(`rejectValue("name", "duplicate", …)`); service failures on the bill forms are
+global errors (`reject("billError", …)`).
+
+### Cross-field validation, @NotBlank, normalizing input
+**What:**
+- Rules that involve two fields go on a `boolean isXxx()` method annotated with
+  `@AssertTrue`; Bean Validation treats it as a property (`xxx`).
+- `@NotBlank` (strings: not null, not empty, not only whitespace) vs `@NotNull`
+  (any type: just not null).
+- Input can be normalized in the setter: `this.name = name == null ? null :
+  name.strip();`.
+
+**Why it matters / when I used it:** `CategoryForm.isMeterBasedWithTwoApartments()`
+checks "METER_BASED ⇒ exactly 2 apartments"; its error is shown with
+`th:errors="*{meterBasedWithTwoApartments}"`. The name is `@NotBlank` and stripped,
+so `" Απολύμανση "` can't create a near-duplicate.
+
+### Thymeleaf: checkboxes, enum options, path templates, projection
+**What:**
+- Checkboxes bound to a `Set<Long>`: `th:field="*{apartmentIds}"` +
+  `th:value="${apartment.id}"` checks the boxes whose id is in the set. `th:field`
+  also renders a hidden `_apartmentIds` marker, so "none selected" arrives as an
+  empty set instead of no value. `#ids.prev('apartmentIds')` gives the id generated
+  for the previous checkbox, for its `<label th:for>`.
+- Enum options: `th:value="${rule}"` (the constant name, bound back to the enum) and
+  `th:text="${rule.label}"`.
+- Path templates: `@{/admin/categories/{id}/edit(id=${category.id})}` fills `{id}`.
+- SpEL projection `category.apartments.![name]` turns a collection into a list of
+  one field; `#strings.listJoin(list, ', ')` joins it.
+
+**Why it matters / when I used it:** `category-form.html` and `categories.html`.
 
 ---
 
