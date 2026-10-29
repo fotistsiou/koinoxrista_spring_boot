@@ -20,6 +20,7 @@ public class Category {
     @Column(name = "split_rule", nullable = false)
     private SplitRule splitRule;
 
+    @OrderBy("id")
     @ManyToMany
     @JoinTable(
             name = "category_apartment",

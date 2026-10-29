@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Κατηγορία</title>
+</head>
+<body>
+<h1 th:text="${categoryId} ? 'Επεξεργασία κατηγορίας' : 'Νέα κατηγορία'"></h1>
+<p><a th:href="@{/admin/categories}">← Κατηγορίες</a></p>
+
+<form th:action="${categoryId} ? @{/admin/categories/{id}(id=${categoryId})} : @{/admin/categories}"
+      th:object="${categoryForm}" method="post">
+
+    <div>
+        <label for="name">Όνομα</label>
+        <input id="name" type="text" th:field="*{name}">
+        <span th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span>
+    </div>
+
+    <div>
+        <label for="splitRule">Τρόπος υπολογισμού</label>
+        <select id="splitRule" th:field="*{splitRule}">
+            <option value="">-- Επίλεξε --</option>
+            <option th:each="rule : ${splitRules}" th:value="${rule}" th:text="${rule.label}"></option>
+        </select>
+        <span th:if="${#fields.hasErrors('splitRule')}" th:errors="*{splitRule}"></span>
+    </div>
+
+    <fieldset>
+        <legend>Συμμετέχοντα διαμερίσματα</legend>
+        <div th:each="apartment : ${apartments}">
+            <input type="checkbox" th:field="*{apartmentIds}" th:value="${apartment.id}">
+            <label th:for="${#ids.prev('apartmentIds')}" th:text="${apartment.name}"></label>
+        </div>
+        <span th:if="${#fields.hasErrors('apartmentIds')}" th:errors="*{apartmentIds}"></span>
+        <span th:if="${#fields.hasErrors('meterBasedWithTwoApartments')}"
+              th:errors="*{meterBasedWithTwoApartments}"></span>
+    </fieldset>
+
+    <button type="submit">Αποθήκευση</button>
+</form>
+</body>
+</html>

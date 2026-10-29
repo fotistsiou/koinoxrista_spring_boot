@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Κατηγορίες</title>
+</head>
+<body>
+<h1>Κατηγορίες</h1>
+<p>
+    <a th:href="@{/admin/categories/new}">+ Νέα κατηγορία</a> ·
+    <a th:href="@{/admin/bills}">Λογαριασμοί</a> ·
+    <a th:href="@{/admin/apartments}">Υπόλοιπα</a>
+</p>
+
+<p th:if="${successMessage}" th:text="${successMessage}"></p>
+
+<table>
+    <thead>
+    <tr>
+        <th>Όνομα</th>
+        <th>Υπολογισμός</th>
+        <th>Διαμερίσματα</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="category : ${categories}">
+        <td th:text="${category.name}"></td>
+        <td th:text="${category.splitRule.label}"></td>
+        <td th:text="${#strings.listJoin(category.apartments.![name], ', ')}"></td>
+        <td><a th:href="@{/admin/categories/{id}/edit(id=${category.id})}">Επεξεργασία</a></td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>
