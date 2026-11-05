@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Ο λογαριασμός μου</title>
+</head>
+<body>
+<h1 th:text="'Καλώς ήρθες, ' + ${user.firstName}"></h1>
+<p th:text="'Διαμέρισμα: ' + ${user.apartment.name}"></p>
+
+<form th:action="@{/logout}" method="post">
+    <button type="submit">Αποσύνδεση</button>
+</form>
+
+<h2>Υπόλοιπο</h2>
+<p>
+    <span th:text="${#numbers.formatDecimal(balance.balance(), 1, 'POINT', 2, 'COMMA')} + ' €'"></span>
+    <span th:if="${balance.balance().signum() > 0}">(οφειλή)</span>
+    <span th:if="${balance.balance().signum() < 0}">(πίστωση)</span>
+    <span th:if="${balance.balance().signum() == 0}">(εξοφλημένο)</span>
+</p>
+
+<h2>Οφειλές</h2>
+<p th:if="${debts.isEmpty()}">Δεν υπάρχουν οφειλές.</p>
+<table th:unless="${debts.isEmpty()}">
+    <thead>
+    <tr><th>Ημερομηνία</th><th>Κατηγορία</th><th>Ποσό λογαριασμού</th><th>Αναλογεί σε σένα</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="debt : ${debts}">
+        <td th:text="${#temporals.format(debt.bill.billDate, 'dd/MM/yyyy')}"></td>
+        <td th:text="${debt.bill.category.name}"></td>
+        <td th:text="${#numbers.formatDecimal(debt.bill.amount, 1, 'POINT', 2, 'COMMA')} + ' €'"></td>
+        <td th:text="${#numbers.formatDecimal(debt.amount, 1, 'POINT', 2, 'COMMA')} + ' €'"></td>
+    </tr>
+    </tbody>
+</table>
+
+<h2>Πληρωμές</h2>
+<p th:if="${payments.isEmpty()}">Δεν υπάρχουν πληρωμές.</p>
+<table th:unless="${payments.isEmpty()}">
+    <thead>
+    <tr><th>Ημερομηνία</th><th>Ποσό</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="payment : ${payments}">
+        <td th:text="${#temporals.format(payment.paymentDate, 'dd/MM/yyyy')}"></td>
+        <td th:text="${#numbers.formatDecimal(payment.amount, 1, 'POINT', 2, 'COMMA')} + ' €'"></td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>

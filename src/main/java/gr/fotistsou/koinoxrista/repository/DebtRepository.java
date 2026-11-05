@@ -3,6 +3,7 @@ package gr.fotistsou.koinoxrista.repository;
 import gr.fotistsou.koinoxrista.entity.Debt;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,4 +18,13 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
         order by b.billDate desc, b.id desc, a.id
         """)
     List<Debt> findAllWithBillAndApartment();
+
+    @Query("""
+        select d from Debt d
+        join fetch d.bill b
+        join fetch b.category
+        where d.apartment.id = :apartmentId
+        order by b.billDate desc, b.id desc
+        """)
+    List<Debt> findByApartmentIdWithBill(@Param("apartmentId") Long apartmentId);
 }

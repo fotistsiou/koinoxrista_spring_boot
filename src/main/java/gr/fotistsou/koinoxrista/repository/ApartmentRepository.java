@@ -23,4 +23,10 @@ public interface ApartmentRepository extends JpaRepository<Apartment, Long> {
         order by a.id
         """)
     List<ApartmentBalance> findAllBalances();
+
+    default Optional<ApartmentBalance> findBalance(Long apartmentId) {
+        return findAllBalances().stream()
+                .filter(row -> row.apartmentId().equals(apartmentId))
+                .findFirst();
+    }
 }

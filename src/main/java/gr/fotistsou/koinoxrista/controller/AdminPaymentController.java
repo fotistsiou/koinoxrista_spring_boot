@@ -45,11 +45,9 @@ public class AdminPaymentController {
 
         if (apartmentId != null) {
             form.setApartmentId(apartmentId);
-            apartmentRepository.findAllBalances().stream()
-                    .filter(row -> row.apartmentId().equals(apartmentId))
+            apartmentRepository.findBalance(apartmentId)
                     .map(ApartmentBalance::balance)
                     .filter(balance -> balance.signum() > 0)
-                    .findFirst()
                     .ifPresent(form::setAmount);
         }
 
