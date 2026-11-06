@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Χρήστες</title>
+</head>
+<body>
+
+<nav>
+    <a th:href="@{/admin/apartments}">Διαμερίσματα</a> |
+    <a th:href="@{/admin/bills}">Λογαριασμοί</a> |
+    <a th:href="@{/admin/payments/new}">Νέα πληρωμή</a> |
+    <a th:href="@{/admin/categories}">Κατηγορίες</a> |
+    <a th:href="@{/admin/users}">Χρήστες</a>
+    <form th:action="@{/logout}" method="post" style="display:inline">
+        <button type="submit">Αποσύνδεση</button>
+    </form>
+</nav>
+
+<h1>Χρήστες</h1>
+
+<div th:if="${tempPassword}">
+    <p>Δημιουργήθηκε ο χρήστης <strong th:text="${createdEmail}"></strong>.</p>
+    <p>Προσωρινός κωδικός: <code th:text="${tempPassword}"></code></p>
+    <p>Σημείωσέ τον τώρα — δεν θα ξαναεμφανιστεί.</p>
+</div>
+
+<p><a th:href="@{/admin/users/new}">Νέος ένοικος</a></p>
+
+<table>
+    <thead>
+    <tr>
+        <th>Διαμέρισμα</th>
+        <th>Ονοματεπώνυμο</th>
+        <th>Email</th>
+        <th>Ρόλος</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="u : ${users}">
+        <td th:text="${u.apartment.name}"></td>
+        <td th:text="${u.firstName + ' ' + u.lastName}"></td>
+        <td th:text="${u.email}"></td>
+        <td th:text="${u.role}"></td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

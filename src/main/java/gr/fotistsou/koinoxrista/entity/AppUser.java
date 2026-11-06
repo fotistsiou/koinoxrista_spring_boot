@@ -27,7 +27,7 @@ public class AppUser {
     private Role role;
 
     @OneToOne(optional = false)
-    @JoinColumn(name = "apartment_id", nullable = false)
+    @JoinColumn(name = "apartment_id", nullable = false, unique = true)
     private Apartment apartment;
 
     public Long getId() {

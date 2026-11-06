@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="el" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Νέος ένοικος</title>
+</head>
+<body>
+
+<nav>
+    <a th:href="@{/admin/apartments}">Διαμερίσματα</a> |
+    <a th:href="@{/admin/bills}">Λογαριασμοί</a> |
+    <a th:href="@{/admin/payments/new}">Νέα πληρωμή</a> |
+    <a th:href="@{/admin/categories}">Κατηγορίες</a> |
+    <a th:href="@{/admin/users}">Χρήστες</a>
+    <form th:action="@{/logout}" method="post" style="display:inline">
+        <button type="submit">Αποσύνδεση</button>
+    </form>
+</nav>
+
+<h1>Νέος ένοικος</h1>
+
+<p th:if="${apartments.isEmpty()}">Όλα τα διαμερίσματα έχουν ήδη χρήστη.</p>
+
+<form th:action="@{/admin/users}" th:object="${form}" method="post">
+
+    <p>
+        <label for="firstName">Όνομα</label>
+        <input type="text" id="firstName" th:field="*{firstName}">
+        <span th:errors="*{firstName}"></span>
+    </p>
+
+    <p>
+        <label for="lastName">Επώνυμο</label>
+        <input type="text" id="lastName" th:field="*{lastName}">
+        <span th:errors="*{lastName}"></span>
+    </p>
+
+    <p>
+        <label for="email">Email</label>
+        <input type="email" id="email" th:field="*{email}">
+        <span th:errors="*{email}"></span>
+    </p>
+
+    <p>
+        <label for="apartmentId">Διαμέρισμα</label>
+        <select id="apartmentId" th:field="*{apartmentId}">
+            <option value="">— επιλογή —</option>
+            <option th:each="a : ${apartments}" th:value="${a.id}" th:text="${a.name}"></option>
+        </select>
+        <span th:errors="*{apartmentId}"></span>
+    </p>
+
+    <button type="submit">Δημιουργία</button>
+    <a th:href="@{/admin/users}">Άκυρο</a>
+</form>
+
+</body>
+</html>

@@ -14,14 +14,14 @@ public interface ApartmentRepository extends JpaRepository<Apartment, Long> {
     Optional<Apartment> findByName(String name);
 
     @Query("""
-        select new gr.fotistsou.koinoxrista.dto.ApartmentBalance(
-            a.id,
-            a.name,
-            (select sum(d.amount) from Debt d where d.apartment = a),
-            (select sum(p.amount) from Payment p where p.apartment = a))
-        from Apartment a
-        order by a.id
-        """)
+            select new gr.fotistsou.koinoxrista.dto.ApartmentBalance(
+                a.id,
+                a.name,
+                (select sum(d.amount) from Debt d where d.apartment = a),
+                (select sum(p.amount) from Payment p where p.apartment = a))
+            from Apartment a
+            order by a.id
+            """)
     List<ApartmentBalance> findAllBalances();
 
     default Optional<ApartmentBalance> findBalance(Long apartmentId) {
@@ -29,4 +29,11 @@ public interface ApartmentRepository extends JpaRepository<Apartment, Long> {
                 .filter(row -> row.apartmentId().equals(apartmentId))
                 .findFirst();
     }
+
+    @Query("""
+            select a from Apartment a
+            where not exists (select u from AppUser u where u.apartment = a)
+            order by a.id
+            """)
+    List<Apartment> findWithoutUser();
 }
