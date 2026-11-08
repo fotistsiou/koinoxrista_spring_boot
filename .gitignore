@@ -32,9 +32,6 @@ build/
 ### VS Code ###
 .vscode/
 
-### MD files ###
-CLAUDE.md
-
 ### Local config (contains secrets) ###
 application-local.properties
 .env
