@@ -62,3 +62,19 @@ A bullet with no pointer (e.g. naming) is defined only here.
 After any change to entities or concepts, remind the owner to update the ✅/⏳
 status in [DOMAIN.md](DOMAIN.md) and the relevant [GLOSSARY.md](GLOSSARY.md)
 entries.
+
+## 5. Current state
+
+Built: bills and split calculation, debts, payments and balances, categories, and
+**Spring Security phase 1** (session login, ADMIN / RESIDENT roles, admin creates
+residents with a one-time temporary password, resident page `/my`).
+(→ DOMAIN: *Users and access*; GLOSSARY §7: *Security*)
+
+Next candidates — **not decided**, no order implied:
+- `spring.jpa.open-in-view=false`
+- custom login page
+- integration tests
+- Tailwind / Alpine for the UI
+- email + phase 2 accounts (invitation, password reset, forced password change)
+- export (Excel or PDF)
+- deploy: Dockerfile, prod profile, Flyway + `ddl-auto=validate`

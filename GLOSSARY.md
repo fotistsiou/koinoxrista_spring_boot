@@ -190,6 +190,26 @@ the `BillService` guard (gas bill ⇒ `METER_BASED` category) and the
 server without the form (a crafted POST, another caller, a future API), and the
 service is the last line before the DB.
 
+### Default methods in interfaces
+**What:** A `default` method is an interface method **with a body**; every
+implementation inherits it. Spring Data leaves default methods alone — it only
+generates the abstract ones.
+**Why it matters / when I used it:** `ApartmentRepository.findBalance(apartmentId)`
+is a default method built on `findAllBalances()`, so the resident page gets one
+apartment's balance without a second JPQL query. Trade-off: it loads every
+apartment's balance and filters in Java — fine for three apartments, a dedicated
+query if that grows.
+
+### Normalizing emails (one static helper, Locale.ROOT)
+**What:** Emails are compared case-insensitively, so they are stored and looked up
+in one canonical form: `email.trim().toLowerCase(Locale.ROOT)`.
+**Why it matters / when I used it:** `UserService.normalizeEmail` is a `static`
+helper used both when **storing** (`createResident`) and when **looking up**
+(`AppUserDetailsService.loadUserByUsername`), so the two can never diverge — one
+place to change. `Locale.ROOT` matters: plain `toLowerCase()` uses the JVM's
+default locale, and in Turkish `"I".toLowerCase()` is a dotless `ı`, so
+`ADMIN@…` would not match `admin@…`.
+
 ---
 
 ## 2. Persistence & Database
@@ -240,6 +260,9 @@ JDBC batch inserts, so SEQUENCE scales better for bulk writes.
 `findByName(String name)` becomes a `WHERE name = ?` query.
 **Why it matters / when I used it:** Lookups without writing SQL. First real use:
 `AppUserRepository.findByEmail(String email)` returning `Optional<AppUser>`.
+Names can also walk **across relationships**: `existsByApartmentId(Long id)` means
+`apartment.id = ?` (property `apartment`, then its `id`), and
+`findAllByOrderByApartmentIdAsc()` sorts by it.
 Pitfall: a typo in the property name fails at startup, which is actually a useful
 early warning.
 
@@ -385,6 +408,11 @@ translates it to SQL.
 **Why it matters / when I used it:** `DebtRepository.findAllWithBillAndApartment`.
 Multi-line queries use Java text blocks (`"""…"""`), so they stay readable without
 string concatenation.
+**Parameters:** `where d.apartment.id = :apartmentId` + `@Param("apartmentId") Long
+apartmentId` (`DebtRepository.findByApartmentIdWithBill`). The value is sent to the
+DB **separately** from the query text (a bound parameter), so it is always treated as
+data, never as SQL — that is what prevents SQL injection. Never build a query by
+concatenating user input into the string.
 
 ### N+1 problem and JOIN FETCH
 **What:** Loading N rows with 1 query, then 1 extra query per row to load a related
@@ -443,6 +471,25 @@ Hibernate and doesn't see Java imports. Entities are known by their simple name
 `totalPayments = null`; `null.subtract(…)` would throw a `NullPointerException`.
 The `ApartmentBalance` compact constructor replaces `null` with `BigDecimal.ZERO`
 (SQL alternative: `coalesce(sum(…), 0)`).
+
+### NOT EXISTS subquery
+**What:** `where not exists (select … where …)` keeps the rows for which the
+subquery finds **nothing** — "parents without a child".
+**Why it matters / when I used it:** `ApartmentRepository.findWithoutUser()`
+(`where not exists (select u from AppUser u where u.apartment = a)`) fills the
+apartment dropdown on the new-resident form, so the admin can only pick an apartment
+that has no user yet.
+
+### Hibernate-generated constraints
+**What:** With `ddl-auto`, Hibernate creates the constraints itself and names them:
+unique constraints get generated names like `uk1j9d9a06…`; an
+`@Enumerated(STRING)` column gets a **CHECK** constraint listing the allowed values
+(`app_user_role_check: role in ('ADMIN','RESIDENT')`).
+**Why it matters / when I used it:** Visible with `\d app_user` (see RUNBOOK.md).
+Limitation: `ddl-auto=update` does **not** alter existing constraints. Adding a new
+`Role` value would leave the old CHECK in place and inserts with the new value would
+fail — it needs a migration (or a DB reset in dev). One reason to move to Flyway
+later.
 
 ### @EntityGraph(attributePaths = …)
 **What:** Tells Spring Data to load the listed (lazy) associations in the same
@@ -551,6 +598,10 @@ session, removed after the next request).
 **Why it matters / when I used it:**
 `redirectAttributes.addFlashAttribute("successMessage", …)` shows "Καταχωρίστηκε…"
 on the page after the redirect, and it disappears on refresh.
+`AdminUserController` uses the same mechanism to show a new resident's **temporary
+password exactly once**: after the redirect the value is gone from the session, and
+it never appears in a URL. A query parameter (`?password=…`) would end up in browser
+history, server logs and `Referer` headers.
 
 ### @ModelAttribute on a method
 **What:** A controller method annotated with `@ModelAttribute("name")` runs before
@@ -571,13 +622,14 @@ relative to it.
 **What:** The form-related Thymeleaf syntax used in the admin templates:
 - `th:object="${billForm}"` + `*{…}` — selection expressions relative to the form
   object.
-- `th:field="*{amount}"` — sets the input's `name`, `id` and `value` in one go.
-  The templates also write `id` explicitly, so `<label for="…">` resolves in the
-  IDE.
+- `th:field="*{amount}"` — sets the input's `name`, `id` and `value` in one go
+  (for a `<select>`, it also marks the bound option as `selected`). The templates
+  still write `id` explicitly — on `<select>`s too — because the IDE only sees the
+  raw template and needs a literal `id` to resolve `<label for="…">`.
 - `#fields.hasErrors('amount')` / `th:errors="*{amount}"` — field errors;
   `#fields.globalErrors()` — errors from `bindingResult.reject`.
-- `@{/admin/bills}` — context-relative URLs. With Spring Security added later,
-  `th:action` will also insert the CSRF token as a hidden field.
+- `@{/admin/bills}` — context-relative URLs. `th:action="@{…}"` also inserts the
+  CSRF token as a hidden field (see *CSRF*).
 - `#temporals.format(date, 'dd/MM/yyyy')`, `#numbers.formatDecimal(…)` — date and
   number formatting.
 - `th:with="bill=${entry.key}"` — a local variable.
@@ -679,6 +731,26 @@ so `" Απολύμανση "` can't create a near-duplicate.
 
 ## 4. Configuration & Tooling
 
+### @Configuration and @Bean
+**What:** A `@Configuration` class holds `@Bean` methods; Spring calls each once and
+registers the return value as a bean. Used for objects we don't write ourselves
+(library classes), so we can't put `@Component` on them.
+**Why it matters / when I used it:** `SecurityConfig` declares the
+`SecurityFilterChain` (the access rules) and the `PasswordEncoder`
+(`BCryptPasswordEncoder`) as beans; `UserService` and `AdminSeeder` then get the
+encoder injected.
+
+### @ConfigurationProperties
+**SETTING.** **What:** Binds a group of properties with a common prefix to a typed
+object. `@ConfigurationPropertiesScan` on the main class registers every such class.
+Relaxed binding: `app.admin.email` in a `.properties` file and the environment
+variable `APP_ADMIN_EMAIL` fill the same field.
+**Why it matters / when I used it:** `AdminProperties` is a record with
+`@ConfigurationProperties(prefix = "app.admin")` (`email`, `password`); `AdminSeeder`
+gets it injected instead of reading strings with `@Value`. Locally the values live
+in the git-ignored `application-local.properties`; in production they can come from
+environment variables without changing code.
+
 ### ddl-auto
 **SETTING.** **What:** Hibernate's schema-management mode
 (`spring.jpa.hibernate.ddl-auto`): `none`, `validate`, `update`, `create`,
@@ -687,7 +759,8 @@ so `" Απολύμανση "` can't create a near-duplicate.
 entity changes without manual SQL. Pitfall: `update` only **adds** missing
 tables/columns; it never alters or drops existing ones (changed nullability, type,
 renamed/removed fields stay as they were). After such a change, reset the DB in dev
-(see RUNBOOK.md); in prod, write a migration. Interview/fintech caveat: never `update` in
+(see RUNBOOK.md); in prod, write a migration. The same goes for constraints (see
+*Hibernate-generated constraints*). Interview/fintech caveat: never `update` in
 production — use `validate` plus real migrations (Flyway/Liquibase) so schema changes
 are reviewed and versioned.
 
@@ -726,8 +799,12 @@ the agent is passed to the test JVM at startup instead.
 **Why it matters / when I used it:** In `pom.xml`, `maven-dependency-plugin` (goal
 `properties`) exposes the jar path as `${org.mockito:mockito-core:jar}`, and
 `maven-surefire-plugin` passes it with
-`<argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>`. IntelliJ picks the
-setting up after a Maven sync.
+`<argLine>-javaagent:${org.mockito:mockito-core:jar} -Xshare:off</argLine>`.
+IntelliJ picks the setting up after a Maven sync.
+`-Xshare:off` turns off **CDS** (Class Data Sharing, a JVM startup cache of core
+classes). A `-javaagent` appends to the bootstrap classpath, which CDS can't share,
+so the JVM printed "Sharing is only supported for boot loader classes…". Disabling
+CDS for the test JVM silences it; the cost is a slightly slower test startup.
 
 ### IDE false positives
 **TOOLING.** **What:** An IDE inspection that reports an error the compiler or the
@@ -798,7 +875,16 @@ test depends on another's leftovers).
 **Why it matters / when I used it:** All test classes build their calculator and
 apartments in `@BeforeEach`. Test classes and methods are package-private (JUnit 5
 doesn't need `public`), and test names describe behavior, e.g.
-`givesLeftoverCentToLowestIdApartment`.
+`givesLeftoverCentToLowestIdApartment` or `createResident_rejectsDuplicateEmail`.
+
+### One test per decision path
+**What:** Each branch of a method (each `if` that returns, throws or saves
+differently) gets its own test, so a failing test points at exactly one rule.
+**Why it matters / when I used it:** `UserServiceTest` has one test for the success
+path (normalized email, encoded password, role, apartment) and one per rejection
+(duplicate email, apartment already taken). The rejection tests also check
+`verify(userRepository, never()).save(any())` — the important behavior is that
+nothing was stored.
 
 ### AssertJ
 **What:** A fluent assertion library: `assertThat(actual).…`.
@@ -809,7 +895,10 @@ doesn't need `public`), and test names describe behavior, e.g.
   scale, so `40.0` ≠ `40.00`; `compareTo` compares only the value.
 - `extracting(Debt::getApartment)`, `allSatisfy(...)` — check a property across a
   whole list.
-- `isSameAs(...)` — the same instance, not just an equal one.
+- `isSameAs(...)` vs `isEqualTo(...)` — `isSameAs` checks the **same instance**
+  (`==`), `isEqualTo` checks `equals()`. Entities here have no `equals()`, so for
+  them `isEqualTo` also falls back to identity; `isSameAs` states the intent: "the
+  service saved exactly the apartment it loaded" (`UserServiceTest`).
 
 ### @ParameterizedTest + @CsvSource
 **What:** One test method run once per row of data; each CSV row becomes the method
@@ -837,14 +926,22 @@ isolation (no DB), speed, control over what they return (e.g. `Optional.empty()`
 a missing category), and observation of the calls. `billRepository.save` uses
 `thenAnswer(invocation -> invocation.getArgument(0))` to return the bill it was given.
 Strict stubs (the extension's default): a stub the test never uses fails with
-`UnnecessaryStubbingException`, which keeps tests free of dead setup.
+`UnnecessaryStubbingException`, which keeps tests free of dead setup. E.g. in
+`UserServiceTest.createResident_rejectsDuplicateEmail` the code throws before
+loading the apartment, so stubbing `apartmentRepository.findById` there would fail
+the test — the test only stubs what that path really uses. Unstubbed methods return
+defaults (`false`, `null`, empty `Optional`), which is why the success test needs no
+stub for `existsByEmail`.
 
 ### ArgumentCaptor / @Captor
 **What:** Captures an argument passed to a mock so the test can inspect it.
 **Why it matters / when I used it:** The `List<Debt>` is built **inside**
 `registerBill` and only handed to `debtRepository.saveAll`; the captor is the only
 way to see it. `@Captor` (instead of `ArgumentCaptor.forClass`) keeps the generic
-type `ArgumentCaptor<List<Debt>>` without an unchecked cast.
+type `ArgumentCaptor<List<Debt>>` without an unchecked cast. `UserServiceTest` uses
+`ArgumentCaptor.forClass(AppUser.class)` (no generics needed) to inspect the user
+passed to `save` — the only way to check that the stored password is the hash, not
+the raw value.
 
 ### Sociable vs solitary unit tests
 **What:** A solitary test replaces every collaborator with a mock; a sociable test
@@ -859,3 +956,130 @@ also checks that service and calculators work together.
 need apartments with ids (ordering by id, `meterApartment` matching).
 `ReflectionTestUtils.setField(apartment, "id", 1L)` sets it without adding a setter
 to production code.
+
+---
+
+## 7. Security
+
+### Authentication vs Authorization
+**What:** Authentication = **who you are** (prove identity: email + password).
+Authorization = **what you may do** (which pages/actions that identity can reach).
+**Why it matters / when I used it:** The login form authenticates; the rule
+`requestMatchers("/admin/**").hasRole("ADMIN")` in `SecurityConfig` authorizes.
+Not logged in → redirect to `/login` (401-type failure); logged in as a resident and
+opening `/admin/…` → 403 Forbidden.
+
+### Security filter chain
+**What:** Every request passes through an ordered chain of servlet filters (CSRF
+check, session → user, login/logout handling, authorization) **before** it reaches
+a controller. Any filter can stop the request.
+**Why it matters / when I used it:** The `SecurityFilterChain` bean in
+`SecurityConfig` configures it: `authorizeHttpRequests` (rules), `formLogin` (the
+default login page), `logout`. Controllers never check access themselves — a
+request to `/admin/bills` that isn't from an ADMIN never reaches
+`AdminBillController`.
+
+### CSRF (Cross-Site Request Forgery)
+**What:** Another site makes the victim's browser send a request to our app; the
+browser attaches our session cookie automatically, so it looks legitimate. Defense:
+every state-changing request (POST) must carry a secret token that only our pages
+know.
+**Why it matters / when I used it:** Spring Security enables CSRF protection by
+default. Forms rendered with `th:action="@{…}"` get a hidden `_csrf` input
+automatically. A form with a plain `action="/admin/bills"` has no token → the POST
+is rejected with **403**.
+
+### BCrypt and salt
+**What:** BCrypt is a password-hashing function that is **deliberately slow** and
+**adaptive** (a cost factor makes it slower as hardware gets faster). A random
+**salt** is generated per password and stored inside the hash string
+(`$2a$10$<salt><hash>`).
+**Why it matters / when I used it:** `BCryptPasswordEncoder` stores only the hash
+in `app_user.password`; login re-hashes the typed password with the stored salt and
+compares. Slow = brute-forcing stolen hashes is expensive; salt = two users with the
+same password get different hashes, and precomputed (rainbow) tables are useless.
+Passwords are never stored in plain text and can't be "decrypted".
+
+### UserDetailsService
+**What:** The Spring Security interface that loads a user by username
+(`loadUserByUsername`) and returns a `UserDetails` (username, password hash,
+authorities).
+**Why it matters / when I used it:** `AppUserDetailsService` is the bridge between
+our `app_user` table and Spring Security: the **email** is the username; it looks up
+the normalized email and builds a `User` with the BCrypt hash and the role. Spring
+Security finds the bean (plus the `PasswordEncoder` bean) and does the password
+check itself.
+
+### ROLE_ prefix
+**What:** Spring Security works with **authorities** (strings). `.roles("ADMIN")`
+stores the authority `ROLE_ADMIN`; `hasRole("ADMIN")` checks for `ROLE_ADMIN`
+(adds the prefix); `hasAuthority("ROLE_ADMIN")` checks the exact string.
+**Why it matters / when I used it:** `AppUserDetailsService` uses
+`.roles(user.getRole().name())`, `SecurityConfig` uses `hasRole("ADMIN")`, and
+`HomeController` compares `getAuthority()` to `"ROLE_ADMIN"` — with the prefix,
+because there it reads the raw authority string.
+
+### SecurityContext
+**What:** Holds the `Authentication` (the logged-in user and its authorities) for the
+current request. With session-based login it is stored in the HTTP session (the
+`JSESSIONID` cookie identifies it) and restored on every request.
+**Why it matters / when I used it:** `HomeController` receives the `Authentication`
+as a method parameter and redirects by role: ADMIN → `/admin/apartments`, otherwise
+→ `/my`.
+
+### @AuthenticationPrincipal
+**What:** Injects the logged-in user (the principal from the `SecurityContext`) into
+a controller method parameter.
+**Why it matters / when I used it:** `ResidentController.myAccount(@AuthenticationPrincipal
+UserDetails principal, …)` gets the email via `principal.getUsername()` and loads the
+`AppUser` from it — no session code, no parameter from the request.
+
+### IDOR (Insecure Direct Object Reference)
+**What:** A user reaches someone else's data by changing an id in the URL or form
+(`/my?apartmentId=3`) because the server trusts it.
+**Why it matters / when I used it:** `/my` takes **no** apartment id from the
+request: the apartment comes from the authenticated user
+(`user.getApartment().getId()`), so a resident can only ever see their own debts,
+payments and balance.
+
+### Logout via POST
+**What:** Logout is a state-changing action, so it is a POST with a CSRF token, not
+a GET link.
+**Why it matters / when I used it:** A GET `/logout` could be triggered by any other
+site (a link or `<img src=".../logout">`) and log the user out. The templates use a
+small `<form th:action="@{/logout}" method="post">` with a button; Spring Security's
+default logout only accepts POST when CSRF is on.
+
+### User enumeration
+**What:** An attacker learns which accounts exist from different error messages
+("no such user" vs "wrong password").
+**Why it matters / when I used it:** Spring Security's login shows the same generic
+error for an unknown email and a wrong password, so the login page doesn't reveal
+which emails are registered. (The "email already in use" message on
+`/admin/users/new` is fine: only the admin sees it.)
+
+### Mass assignment
+**What:** Binding a request straight onto an object lets an attacker set fields the
+form never showed (`role=ADMIN`, `id=…`).
+**Why it matters / when I used it:** `ResidentForm` has only first name, last name,
+email and apartment — **no `role`**. `UserService.createResident` always sets
+`Role.RESIDENT`, so no POST can create an admin. See *DTO / form object*.
+
+### SecureRandom vs Random
+**What:** `java.util.Random` is a fast, **predictable** generator: from a few
+outputs its future values can be computed. `java.security.SecureRandom` is
+cryptographically strong.
+**Why it matters / when I used it:** `UserService.generatePassword()` uses
+`SecureRandom` for the temporary passwords. Rule: anything security-related
+(passwords, tokens, reset links) uses `SecureRandom`.
+
+### TOCTOU and unique constraints
+**What:** Time-Of-Check to Time-Of-Use: a check and the action that depends on it
+are separate steps, so the state can change in between. "Check, then save" is not
+atomic.
+**Why it matters / when I used it:** `UserService.createResident` checks
+`existsByEmail` and `existsByApartmentId`, then saves. Two simultaneous requests
+could both pass the checks. The DB unique constraints on `app_user.email` and
+`app_user.apartment_id` are the last line of defense: the second insert fails. The
+checks are there for a friendly error message; the constraint is what guarantees the
+rule.

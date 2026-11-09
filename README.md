@@ -7,12 +7,23 @@ among apartments, track who owes what, and email each resident their monthly
 balance. Built for personal use (the owner runs it for their own building), not as a
 product for third parties.
 
+## Features
+
+- Bills split per category (equal split or gas meters), debts per apartment,
+  payments and live balances
+- Session-based login (Spring Security, BCrypt passwords)
+- Roles: ADMIN manages everything under `/admin/**`; RESIDENT sees only their own
+  apartment
+- Admin user management: create resident accounts with a one-time temporary password
+- Resident account page (`/my`): own balance, debts and payments
+
 ## Tech stack
 
 - Java 21
 - Spring Boot 4.1
 - PostgreSQL
 - Spring Data JPA
+- Spring Security
 - Thymeleaf
 - Maven
 - Docker / Docker Compose (local PostgreSQL)
@@ -44,6 +55,11 @@ Admin pages:
 - `/admin/bills/new` — register a plain bill (equal split)
 - `/admin/gas-bills/new` — register the monthly gas bill (meter-based split)
 - `/admin/payments/new` — register a payment
+- `/admin/users` — user accounts; `/admin/users/new` creates a resident
+
+Every page requires login; `/` redirects the admin to `/admin/apartments` and a
+resident to `/my`. See [RUNBOOK.md](RUNBOOK.md#users-and-login) for the admin
+account setup.
 
 ## Project structure
 
