@@ -31,14 +31,14 @@ public class AdminUserController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("users", userRepository.findAllByOrderByApartmentIdAsc());
-        return "admin/users/list";
+        return "admin/users";
     }
 
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("form", new ResidentForm());
         model.addAttribute("apartments", apartmentRepository.findWithoutUser());
-        return "admin/users/new";
+        return "admin/user-form";
     }
 
     @PostMapping
@@ -55,7 +55,7 @@ public class AdminUserController {
         }
         if (result.hasErrors()) {
             model.addAttribute("apartments", apartmentRepository.findWithoutUser());
-            return "admin/users/new";
+            return "admin/user-form";
         }
 
         String tempPassword = userService.createResident(form);

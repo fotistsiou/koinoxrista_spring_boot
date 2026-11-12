@@ -11,7 +11,7 @@
     <a th:href="@{/admin/bills}">Λογαριασμοί</a> |
     <a th:href="@{/admin/payments/new}">Νέα πληρωμή</a> |
     <a th:href="@{/admin/categories}">Κατηγορίες</a> |
-    <a th:href="@{/admin/users}">Χρήστες</a>
+    <a th:href="@{/templates/admin/users}">Χρήστες</a>
     <form th:action="@{/logout}" method="post" style="display:inline">
         <button type="submit">Αποσύνδεση</button>
     </form>
@@ -21,7 +21,7 @@
 
 <p th:if="${apartments.isEmpty()}">Όλα τα διαμερίσματα έχουν ήδη χρήστη.</p>
 
-<form th:action="@{/admin/users}" th:object="${form}" method="post">
+<form th:action="@{/templates/admin/users}" th:object="${form}" method="post">
 
     <p>
         <label for="firstName">Όνομα</label>
@@ -51,7 +51,7 @@
     </p>
 
     <button type="submit">Δημιουργία</button>
-    <a th:href="@{/admin/users}">Άκυρο</a>
+    <a th:href="@{/templates/admin/users}">Άκυρο</a>
 </form>
 
 </body>
