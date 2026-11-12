@@ -16,11 +16,11 @@ public class Debt {
     @Column(precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "bill_id", nullable = false)
     private Bill bill;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "apartment_id", nullable = false)
     private Apartment apartment;
 

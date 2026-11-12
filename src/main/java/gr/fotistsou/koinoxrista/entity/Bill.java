@@ -22,7 +22,7 @@ public class Bill {
     @Column(name = "bill_date", nullable = false)
     private LocalDate billDate;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 

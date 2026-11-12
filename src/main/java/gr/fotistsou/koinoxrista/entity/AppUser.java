@@ -26,7 +26,7 @@ public class AppUser {
     @Column(nullable = false)
     private Role role;
 
-    @OneToOne(optional = false)
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "apartment_id", nullable = false, unique = true)
     private Apartment apartment;
 

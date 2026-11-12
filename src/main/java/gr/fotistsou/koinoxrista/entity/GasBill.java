@@ -16,7 +16,7 @@ public class GasBill extends Bill {
     @Column(name = "consumption_charge", precision = 10, scale = 2, nullable = false)
     private BigDecimal consumptionCharge;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "meter_apartment_id", nullable = false)
     private Apartment meterApartment;
 

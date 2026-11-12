@@ -5,8 +5,8 @@
     <title>Ο λογαριασμός μου</title>
 </head>
 <body>
-<h1 th:text="'Καλώς ήρθες, ' + ${user.firstName}"></h1>
-<p th:text="'Διαμέρισμα: ' + ${user.apartment.name}"></p>
+<h1 th:text="'Καλώς ήρθες, ' + ${firstName}"></h1>
+<p th:text="'Διαμέρισμα: ' + ${balance.apartmentName}"></p>
 
 <form th:action="@{/logout}" method="post">
     <button type="submit">Αποσύνδεση</button>
