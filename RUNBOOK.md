@@ -134,6 +134,24 @@ constraint on `role`.
 docker compose exec db psql -U <db-user> -d <db-name> -c "update app_user set email = lower(email) where role = 'ADMIN'"
 ```
 
+## See the executed SQL
+
+In `application-local.properties` (already in the `.example`):
+```properties
+logging.level.org.hibernate.SQL=debug
+spring.jpa.properties.hibernate.format_sql=true
+```
+Don't also set `spring.jpa.show-sql=true` — every query would be printed twice.
+
+Each SQL line carries the thread name. Tomcat handles each request on a thread like
+`http-nio-8080-exec-3`, so the lines with the same `exec-N` (and close timestamps)
+are the queries of **one** page load:
+```text
+... DEBUG 12345 --- [nio-8080-exec-3] org.hibernate.SQL : select ...
+```
+Open the page once and count them: more than a handful for a list page usually means
+an N+1 (a relation that isn't fetched in the query). Seeders run on `main`.
+
 ## Reset the database
 
 When an entity change alters an **existing** column (nullability, type, rename),
@@ -173,3 +191,18 @@ App won't start — check these in order:
   ```bash
   ./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8081
   ```
+
+A page fails with `LazyInitializationException` (`could not initialize proxy … no
+Session`):
+
+- **Meaning.** A template (or code after the transaction) read a property through
+  a lazy relation that the query didn't load. `open-in-view` is off and all to-one
+  relations are LAZY, so there is no session left to load it.
+- **Find it.** The stack trace names the template and expression (e.g.
+  `user.apartment.name`); find the controller that renders that view and the
+  repository method that loaded the root object.
+- **Fix it there:** add `join fetch` to the `@Query` or `@EntityGraph(attributePaths
+  = …)` to the repository method, or pass the template the plain value it needs
+  (a view-model record built in a service). Don't turn `open-in-view` back on, put
+  `@Transactional` on the controller, or enable
+  `hibernate.enable_lazy_load_no_trans`.

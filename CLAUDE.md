@@ -70,10 +70,21 @@ Built: bills and split calculation, debts, payments and balances, categories, an
 residents with a one-time temporary password, resident page `/my`).
 (→ DOMAIN: *Users and access*; GLOSSARY §7: *Security*)
 
-Next candidates — **not decided**, no order implied:
-- `spring.jpa.open-in-view=false`
+Data-access hardening (done): `spring.jpa.open-in-view=false`; all to-one relations
+`fetch = LAZY`; `/my` loaded by `ResidentAccountService` into the `ResidentAccount`
+record; `findBalance` filters in the DB; user templates renamed to
+`admin/users.html` / `admin/user-form.html`. (→ DOMAIN: *Locked principles* 12–16;
+GLOSSARY: *Open Session in View*, *LazyInitializationException*)
+
+Known pending item: `spring.profiles.active=local` lives in `application.properties`
+(inside the jar). Move profile selection out of it (IntelliJ run configuration / env
+var) during the deploy slice, with a test profile or `@ActiveProfiles` so
+`contextLoads` still finds its DB settings.
+
+Next slice — **proposed, not confirmed**: integration tests.
+
+Other candidates — **not decided**, no order implied:
 - custom login page
-- integration tests
 - Tailwind / Alpine for the UI
 - email + phase 2 accounts (invitation, password reset, forced password change)
 - export (Excel or PDF)

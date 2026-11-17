@@ -366,6 +366,19 @@ Shares must always **sum exactly** to the bill amount.
     the gas bill and computes `fixedCharge`. Same idea as no stored totals: one
     source of truth, nothing to drift.
 
+**Data access and templates** (technical, but locked the same way — see GLOSSARY
+*Open Session in View*, *FetchType*, *Filtering in the database vs in Java*):
+
+12. **`spring.jpa.open-in-view=false`** — no Hibernate session during rendering.
+13. **All `@ManyToOne` / `@OneToOne` are `fetch = LAZY`**; each page fetches what it
+    needs explicitly (`join fetch` / `@EntityGraph`).
+14. **Data for a page is loaded in a repository/service**, never lazily from a
+    template (e.g. `ResidentAccountService` builds `ResidentAccount` for `/my`).
+15. **Filtering happens in the database, not in Java** (`WHERE`, not
+    `stream().filter`).
+16. **Admin templates live flat under `templates/admin/`**: `<plural>.html` for
+    lists, `<singular>-form.html` for forms (e.g. `users.html`, `user-form.html`).
+
 ---
 
 ## Open questions

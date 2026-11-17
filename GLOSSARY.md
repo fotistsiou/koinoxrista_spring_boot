@@ -195,10 +195,10 @@ service is the last line before the DB.
 implementation inherits it. Spring Data leaves default methods alone — it only
 generates the abstract ones.
 **Why it matters / when I used it:** `ApartmentRepository.findBalance(apartmentId)`
-is a default method built on `findAllBalances()`, so the resident page gets one
-apartment's balance without a second JPQL query. Trade-off: it loads every
-apartment's balance and filters in Java — fine for three apartments, a dedicated
-query if that grows.
+was first a default method built on `findAllBalances()` (load every balance, filter
+in Java). It was replaced by its own `@Query` with `where a.id = :apartmentId` —
+see *Filtering in the database vs in Java*. Default methods still fit small helpers
+that combine other repository methods without loading extra data.
 
 ### Normalizing emails (one static helper, Locale.ROOT)
 **What:** Emails are compared case-insensitively, so they are stored and looked up
@@ -313,6 +313,35 @@ the foreign key on this ("owning") side's table.
 The owning side holds the FK; nullable on the FK expresses a domain rule (a user must
 have an apartment; a bill must have a category).
 
+### FetchType: EAGER vs LAZY (and the defaults)
+**What:** `fetch` decides when a related entity is loaded. Defaults: `@ManyToOne` /
+`@OneToOne` are **EAGER**, `@OneToMany` / `@ManyToMany` are **LAZY**. EAGER does not
+mean "joined": in a JPQL or derived query that doesn't `join fetch` the relation,
+Hibernate loads it with an **extra SELECT** per row — a hidden N+1.
+**Why it matters / when I used it:** Every to-one relation here is
+`fetch = FetchType.LAZY` (`AppUser.apartment`, `Bill.category`, `Debt.bill`,
+`Debt.apartment`, `GasBill.meterApartment`, `Payment.apartment`). Nothing is loaded
+unless a page asks for it explicitly (JOIN FETCH / `@EntityGraph`), so every query
+loads exactly what it says.
+
+### Hibernate proxy
+**What:** A lazy to-one relation is filled with a **proxy**: a generated subclass of
+the entity that holds only the id. `getId()` answers from the proxy without touching
+the DB; any other getter loads the row — which needs an **open session**.
+**Why it matters / when I used it:** `ResidentAccountService` calls
+`user.getApartment().getId()` — no query. `toString()` methods print related ids for
+the same reason. Pitfall: a proxy of `Bill` is not an `instanceof GasBill` even when
+the row is a gas bill; only a really loaded entity has the right subclass.
+
+### LAZY @OneToOne only works on the owning side
+**What:** On the side that holds the FK (the owning side), Hibernate knows from the
+FK column whether a related row exists, so it can put a proxy (or `null`) there. On
+the inverse side (`mappedBy`), it can't know without querying, so it loads eagerly
+anyway (unless bytecode enhancement is used).
+**Why it matters / when I used it:** `AppUser.apartment` is the owning side
+(`app_user.apartment_id`), so its `LAZY` really is lazy. Another reason to keep
+relations unidirectional and owned by the side with the FK.
+
 ### optional = false vs nullable = false
 **What:** `nullable = false` (on `@Column`/`@JoinColumn`) is a **DB** constraint: it
 goes into the DDL as a `NOT NULL` column. `optional = false` (on `@OneToOne`/
@@ -342,7 +371,9 @@ filled via `getApartments().add(...)` / `addAll(...)`. Pitfall: never assign
 **What:** Three ways JPA maps a class hierarchy to tables. SINGLE_TABLE: one table
 with all columns + a discriminator (extra columns are null for other types). JOINED: a
 base table plus one table per subclass, linked by a shared-id FK. TABLE_PER_CLASS: one
-full table per concrete class (rarely ideal).
+full table per concrete class (rarely ideal). With JOINED, saving a subclass is
+**two inserts with the same id**: first `bill` (the IDENTITY id is generated there),
+then `gas_bill` with that id.
 **Why it matters / when I used it:** `GasBill extends Bill` with JOINED. Chosen to keep
 each table clean (no null meter columns on electricity bills), honoring the "each type
 only its own fields" decision. Trade-off accepted: reading a `GasBill` needs a JOIN —
@@ -370,7 +401,7 @@ by hand.
 may print only the related **id** (e.g. `billId=…`, not the whole `Bill`);
 collections must not appear at all.
 **Why it matters / when I used it:** Printing a related entity can trigger a
-`LazyInitializationException` (if the relation becomes LAZY) or a
+`LazyInitializationException` (all to-one relations are LAZY now) or a
 `StackOverflowError` (if it becomes bidirectional and both sides print each other).
 Printing a collection iterates it, which loads the lazy collection (an extra query,
 or a `LazyInitializationException` outside a session). Used in `Bill`, `Debt`,
@@ -387,11 +418,12 @@ transaction; a call from inside the same class (self-invocation) bypasses the pr
 so no transaction is started.
 
 ### @Transactional(readOnly = true)
-**What:** Marks a service method as read-only: Hibernate skips dirty checking and
-never flushes, and the driver/DB may optimize the transaction.
-**Why it matters / when I used it:** `BillService.findBillsWithDebts` only reads.
-It also documents intent: a read method that accidentally modifies an entity won't
-write it back.
+**What:** Marks a service method as read-only: the Hibernate session is read-only,
+so loaded entities get **no dirty-checking snapshot** (less memory) and the session
+is **never flushed**; the driver/DB may optimize the transaction too.
+**Why it matters / when I used it:** `BillService.findBillsWithDebts` and
+`ResidentAccountService.loadAccount` only read. It also documents intent: a read
+method that accidentally modifies an entity won't write it back.
 
 ### getReferenceById
 **What:** Returns a reference (proxy) that holds only the id — **no SELECT**. The
@@ -419,27 +451,62 @@ concatenating user input into the string.
 entity = 1 + N queries. `join fetch` in JPQL loads the relation in the **same**
 query.
 **Why it matters / when I used it:** `debtRepository.findAll()` for the bills page
-gave 1 + N queries: one per bill and per apartment, because `@ManyToOne` is EAGER
-by default. `findAllWithBillAndApartment` uses `join fetch d.bill`,
-`join fetch b.category`, `join fetch d.apartment` and loads everything in one query.
-Spot it by counting the SELECTs in the `show-sql` log for one page load.
+gave 1 + N queries: one per bill and per apartment, because `@ManyToOne` was EAGER
+by default (now all to-one relations are LAZY — see *FetchType*).
+`findAllWithBillAndApartment` uses `join fetch d.bill`, `join fetch b.category`,
+`join fetch d.apartment` and loads everything in one query. Spot it by counting the
+SELECTs in the SQL log for one page load (see *SQL logging*).
 
 ### Persistence context (first-level cache)
 **What:** Within one transaction (one `EntityManager`), each entity is loaded at
 most once, and every reference to the same row is the **same Java object**.
 **Why it matters / when I used it:** Explains why `Bill` works as a `groupingBy` key
 without `equals`/`hashCode`: all debts of a bill point to the same `Bill` instance.
-Also why the bills page needs no extra query for `GasBill.meterApartment`: that
-apartment was already loaded by the same query (as a debt's apartment), so
-Hibernate takes it from the persistence context.
+**One context per transaction:** with OSIV off, each repository call made
+**outside** a transaction gets its own short-lived context, so the same entity can
+be loaded again by the next call. Grouping the calls in one `@Transactional`
+service method (`ResidentAccountService.loadAccount`) shares one context across
+them.
 
 ### Open Session in View (spring.jpa.open-in-view)
-**SETTING.** **What:** Keeps the Hibernate session open for the whole web request,
-including view rendering. Enabled by default (Spring logs a warning at startup).
-**Why it matters / when I used it:** It lets lazy loading happen silently while
-Thymeleaf renders, which can hide N+1 queries in the view. Not set in this project
-yet (so it is on); we will disable it later
-(`spring.jpa.open-in-view=false`) and load what a page needs explicitly.
+**SETTING.** **What:** Keeps the Hibernate session (and a DB connection) open for the
+whole web request, including view rendering. Enabled by default; Spring Boot logs a
+warning at startup when it is left at the default.
+**Why it matters / when I used it:** Disabled in `application.properties`
+(`spring.jpa.open-in-view=false`), because it:
+- **hides N+1** — lazy loading happens silently while Thymeleaf renders;
+- **holds a pooled connection** during rendering, longer than the queries need;
+- **blurs the data-access boundary** — templates end up triggering queries.
+
+Now each page loads what it needs in a repository/service; a missed relation fails
+loudly (*LazyInitializationException*) instead of running a hidden query.
+
+### LazyInitializationException
+**What:** A lazy relation (a proxy or a lazy collection) is accessed **after** the
+session that loaded its owner was closed — e.g. in a template with OSIV off.
+**Why it matters / when I used it:** `my/account.html` read `${user.apartment.name}`
+while `findByEmail` hadn't fetched the apartment. The fix is to **fetch in the
+repository** (`join fetch` / `@EntityGraph`) or to hand the view the values it needs
+(see *View-model record*). Not fixes: `@Transactional` on controllers or
+`hibernate.enable_lazy_load_no_trans` — both just bring hidden lazy queries back.
+
+### Lazy loading inside a transaction
+**What:** Inside a transaction the session is open, so touching a lazy relation
+simply runs a query and works.
+**Why it matters / when I used it:** Observed in `BillService.registerBill`:
+iterating `category.getApartments()` (lazy) loads them there without error. It works
+— but each access is still a query, so lists should be fetched up front.
+
+### Isolation level READ_COMMITTED
+**What:** PostgreSQL's default isolation level: each **statement** sees the data
+committed before it started. Two queries in the same transaction can therefore see
+different data if another transaction commits in between. `REPEATABLE_READ` would
+give the whole transaction one snapshot.
+**Why it matters / when I used it:** `ResidentAccountService.loadAccount` runs four
+queries in one read-only transaction. That shares the persistence context, but it
+does **not** guarantee that the balance, debts and payments come from the same
+moment. Acceptable here (a payment committed between two queries is very unlikely
+and harmless on a read page).
 
 ### Aggregation in the database
 **What:** Sums, counts and grouping (`SUM`, `COUNT`, `GROUP BY`) run in SQL; the DB
@@ -447,6 +514,14 @@ returns one small row per result instead of every detail row.
 **Why it matters / when I used it:** `ApartmentRepository.findAllBalances` returns
 one row per apartment with its totals. Loading every debt and payment into Java
 just to sum them with streams moves far more data and gets slower as history grows.
+
+### Filtering in the database vs in Java
+**What:** Put the condition in the query (`WHERE`) so the DB returns only the rows
+needed, instead of loading many rows and filtering with a stream.
+**Why it matters / when I used it:** `ApartmentRepository.findBalance` used to call
+`findAllBalances()` and `stream().filter(…)` for one apartment; it is now its own
+query with `where a.id = :apartmentId`. Less data over the wire, the DB can use the
+primary-key index, and the method does what its name says.
 
 ### Join fan-out
 **What:** Joining one parent to **two** child tables produces every combination of
@@ -522,7 +597,9 @@ Hibernate remembers its state and writes any changes automatically at commit
 **Why it matters / when I used it:** `CategoryService.save` changes the name, rule
 and apartments of a loaded category; the UPDATE happens at commit even without
 `save()`. (The method calls `save()` for both cases, which is harmless for a managed
-entity, and needed for a new one.)
+entity, and needed for a new one.) Dirty checking compares against the state taken
+at load time and writes **only what changed**: saving a category unchanged produces
+no UPDATE, and for a collection only the changed rows are written.
 
 ---
 
@@ -540,6 +617,25 @@ API instead of HTML.
 **Why it matters / when I used it:** `model.addAttribute("apartments", …)` makes the
 list available to `apartments.html`. It's the hand-off point between the web layer
 and the template.
+
+### View name resolution
+**What:** A controller returns a **view name**; Thymeleaf turns it into a file path:
+`templates/` + view name + `.html`.
+**Why it matters / when I used it:** `return "admin/users"` renders
+`templates/admin/users.html`; `"admin/user-form"` → `templates/admin/user-form.html`.
+The string and the file location must match — renaming a template means changing the
+controller too (done when the user templates moved from `admin/users/list.html` /
+`new.html` to the flat `admin/` convention).
+
+### View-model record
+**What:** A record built for **one page**, holding exactly what the template needs,
+instead of handing it an entity graph full of lazy proxies.
+**Why it matters / when I used it:** `ResidentAccount(firstName, balance, debts,
+payments)` is built by `ResidentAccountService.loadAccount` inside one read-only
+transaction. The template reads `firstName` and `balance.apartmentName` (plain
+values) instead of `user.apartment.name` (a lazy proxy); the debt list comes from a
+`join fetch` query, so everything the page touches is loaded before the session
+closes.
 
 ### Thymeleaf (server-side rendering)
 **What:** A template engine that produces the final HTML on the server before
@@ -770,6 +866,32 @@ are reviewed and versioned.
 **Why it matters / when I used it:** `local` is active by default and holds the DB
 connection in `application-local.properties`, keeping env-specific values out of the
 shared config.
+- `application.properties` — applies to **every** environment (app name, encoding,
+  `open-in-view=false`, the active profile).
+- `application-local.properties` — **development only**, git-ignored: DB
+  connection, `ddl-auto=update`, SQL logging, the seeded admin. Its committed
+  template is `application-local.properties.example`.
+
+Pending: `spring.profiles.active=local` sits in `application.properties`, i.e. inside
+the jar; profile selection should move out of it (run configuration / env var)
+before deploying.
+
+### SQL logging
+**SETTING.** **What:** Two ways to see the SQL Hibernate runs:
+`spring.jpa.show-sql=true` prints straight to **stdout** (no timestamp, no thread,
+can't be filtered); `logging.level.org.hibernate.SQL=debug` sends it through the
+**logger**, with timestamp and thread name, and can be set per profile.
+`spring.jpa.properties.hibernate.format_sql=true` pretty-prints it on several lines.
+**Why it matters / when I used it:** Using both printed every query twice, so
+`show-sql` was removed; `application-local.properties` keeps the logger setting and
+`format_sql`. Production simply doesn't set it.
+
+### Reading thread names in logs
+**TOOLING.** **What:** Each log line shows the thread that wrote it; Tomcat serves each
+request on a worker thread named like `http-nio-8080-exec-3`.
+**Why it matters / when I used it:** All SQL lines with the same `exec-N` (close in
+time) belong to the same request, so you can count the queries of one page load and
+spot an N+1. Startup work (seeders) runs on `main`.
 
 ### Maven / pom.xml
 **SETTING/TOOLING.** **What:** Maven is the build tool; `pom.xml` declares
