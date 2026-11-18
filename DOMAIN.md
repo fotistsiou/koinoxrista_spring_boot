@@ -3,6 +3,10 @@
 Reference for the business logic of the app: what each entity is, how they relate,
 and why. Programming concepts live in [GLOSSARY.md](GLOSSARY.md).
 
+**Scope:** a portfolio demo of the shared-expenses (κοινόχρηστα) workflow of a small
+building, running on sample data. It will be hosted as a subdomain of the Personal
+Site project (see [Demo mode](#demo-mode)).
+
 Legend: ✅ built · ⏳ planned · ❓ open question
 
 ---
@@ -304,7 +308,7 @@ Shares must always **sum exactly** to the bill amount.
   of the 1st floor (1ος), so the admin account is linked to that apartment.
 - **RESIDENT** — sees only their own apartment.
 
-**Accounts (phase 1 — ✅ built)**
+**Accounts (✅ built)**
 - **No public registration.** The admin account is created on startup by
   `AdminSeeder` (only when `app_user` is empty); resident accounts are created by
   the admin at `/admin/users/new`.
@@ -324,17 +328,30 @@ Shares must always **sum exactly** to the bill amount.
 - Login and logout are session-based (Spring Security's default login page; logout
   is a POST).
 
-**⏳ Phase 2 (planned, needs email)**
-- Invitation by email with a token and an expiry instead of a temporary password.
-- Password reset.
-- Forced password change on first login.
-
 | URL | Page | Access |
 |---|---|---|
 | `/` | redirect by role | logged in |
 | `/my` | the resident's own balance, debts and payments | logged in |
 | `/admin/users` | all users by apartment; shows a new temporary password once | ADMIN |
 | `/admin/users/new` | new resident form: first name, last name, email, apartment (only apartments without a user) | ADMIN |
+
+---
+
+## Demo mode
+
+⏳ Planned. How the app runs as a public portfolio demo:
+
+- A **`demo` profile**.
+- **Sample data re-seeded on every startup**, so the demo always starts from the
+  same state.
+- A visible **"Demo — data is reset"** banner on every page.
+- **Login page buttons "Sign in as admin" / "Sign in as resident"**, so visitors
+  can see both roles without credentials.
+- **No email, no uploads, no external calls.**
+
+Code and the Docker image for demo mode are built in this repo. The server side
+(VPS, subdomain, reverse proxy, resource limits, the nightly reset cron) belongs to
+the Personal Site project.
 
 ---
 
@@ -397,16 +414,15 @@ Shares must always **sum exactly** to the bill amount.
   calculation service that switches on the rule?~~ **Resolved:** Strategy pattern
   — one `SplitCalculator` per rule, chosen by `BillService` (see
   [Bill registration and calculation](#bill-registration-and-calculation)).
-- ❓ **Export format** (Excel or PDF) — after the core works.
+- ⏳ **Export:** Excel only (Apache POI).
 - ❓ **Editing / deleting a bill and its debts:** cascade from Bill to Debt, or an
   explicit delete of the debts in the service? Note the inconsistency: the Debt
   section says "permanent record, never deleted", which contradicts deleting a
-  bill's debts. One of the two must give way when this is decided (e.g. "deleted
-  only together with its bill").
+  bill's debts. One of the two must give way (e.g. "deleted only together with its
+  bill") — **resolve before the edit/delete slice**.
 - ✅ ~~**Gas form category:** choosing a non-gas category for a gas bill would
   still be calculated.~~ **Resolved:** categories carry a SplitRule; the bill-form
   dropdowns are filtered by rule, and the `BillService` guard rejects a `GasBill`
   in a non-`METER_BASED` category.
-- ❓ **Bill PDFs:** store a OneDrive link, or upload the file?
 - ❓ **Gas form input:** the admin enters `amount` and Ω (`consumptionCharge`) from
   the gas bill; form design not decided yet.

@@ -117,7 +117,7 @@ runs on an empty table); reset the DB or update the row.
    user are listed).
 3. After saving, `/admin/users` shows the **temporary password once**. Copy it and
    hand it to the resident — it is stored only as a hash and cannot be shown again.
-   If it is lost, the account has to be recreated (no password reset yet).
+   If it is lost, the account has to be recreated (there is no password reset).
 
 ### Inspect users and constraints
 

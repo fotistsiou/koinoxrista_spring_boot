@@ -1,11 +1,9 @@
 # koinoxrista
 
-A Spring Boot application for managing shared building expenses (κοινόχρηστα). It
-replaces the Excel sheets a building owner used to split expense categories —
-electricity, gas, boiler maintenance, disinfection, and any others the admin adds —
-among apartments, track who owes what, and email each resident their monthly
-balance. Built for personal use (the owner runs it for their own building), not as a
-product for third parties.
+A Spring Boot application for managing shared building expenses (κοινόχρηστα): it
+splits expense categories — electricity, gas, boiler maintenance, disinfection, and
+any others the admin adds — among apartments and tracks who owes what. A portfolio
+demo running on sample data.
 
 ## Features
 

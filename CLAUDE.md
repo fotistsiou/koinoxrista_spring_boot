@@ -65,9 +65,12 @@ entries.
 
 ## 5. Current state
 
+Scope: a portfolio demo with sample data, to be hosted as a subdomain of the
+Personal Site project. (→ DOMAIN: *Scope*, *Demo mode*)
+
 Built: bills and split calculation, debts, payments and balances, categories, and
-**Spring Security phase 1** (session login, ADMIN / RESIDENT roles, admin creates
-residents with a one-time temporary password, resident page `/my`).
+**Spring Security** (session login, ADMIN / RESIDENT roles, admin creates residents
+with a one-time temporary password, resident page `/my`).
 (→ DOMAIN: *Users and access*; GLOSSARY §7: *Security*)
 
 Data-access hardening (done): `spring.jpa.open-in-view=false`; all to-one relations
@@ -76,16 +79,22 @@ record; `findBalance` filters in the DB; user templates renamed to
 `admin/users.html` / `admin/user-form.html`. (→ DOMAIN: *Locked principles* 12–16;
 GLOSSARY: *Open Session in View*, *LazyInitializationException*)
 
-Known pending item: `spring.profiles.active=local` lives in `application.properties`
-(inside the jar). Move profile selection out of it (IntelliJ run configuration / env
-var) during the deploy slice, with a test profile or `@ActiveProfiles` so
-`contextLoads` still finds its DB settings.
+Roadmap, in order:
+1. **Integration tests:** Testcontainers (PostgreSQL), `@SpringBootTest` + MockMvc,
+   a test profile (also fixes `spring.profiles.active=local` living in
+   `application.properties`).
+2. **GitHub Actions CI:** `mvn verify` on every push.
+3. **Edit/delete bill and debts** — resolve "Debt is never deleted" first
+   (→ DOMAIN: *Open questions*).
+4. **Excel export** (Apache POI).
+5. **Tailwind + Alpine**, custom login page.
+6. **Flyway** + `ddl-auto=validate`, explicit constraint names.
+7. **Multi-stage Dockerfile**; `prod` and `demo` profiles, profile chosen outside
+   the jar; demo seeder, startup reset, banner, role sign-in buttons
+   (→ DOMAIN: *Demo mode*).
+8. **Public repo readiness:** English README with screenshots, scan git history for
+   secrets.
+9. Add the project to CV/LinkedIn.
 
-Next slice — **proposed, not confirmed**: integration tests.
-
-Other candidates — **not decided**, no order implied:
-- custom login page
-- Tailwind / Alpine for the UI
-- email + phase 2 accounts (invitation, password reset, forced password change)
-- export (Excel or PDF)
-- deploy: Dockerfile, prod profile, Flyway + `ddl-auto=validate`
+Server-side deployment (VPS, subdomain, reverse proxy, resource limits, nightly
+reset cron) is done in the Personal Site project, not here.
