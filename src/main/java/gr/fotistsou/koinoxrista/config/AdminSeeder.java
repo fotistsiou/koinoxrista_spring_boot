@@ -8,11 +8,13 @@ import gr.fotistsou.koinoxrista.repository.AppUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Order(3)
+@Profile("!test")
 @Component
 public class AdminSeeder implements CommandLineRunner {
 
