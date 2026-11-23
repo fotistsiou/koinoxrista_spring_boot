@@ -25,6 +25,8 @@ demo running on sample data.
 - Thymeleaf
 - Maven
 - Docker / Docker Compose (local PostgreSQL)
+- JUnit 5, Mockito, AssertJ; integration tests with Testcontainers (PostgreSQL) and
+  MockMvc
 
 ## Setup and run locally
 

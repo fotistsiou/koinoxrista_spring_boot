@@ -49,6 +49,10 @@ A bullet with no pointer (e.g. naming) is defined only here.
 - **Tests:** `BigDecimal` created from strings and compared with
   `isEqualByComparingTo`; unit tests mock repositories only. Flag new calculation
   logic that has no tests. (→ GLOSSARY §6: *Testing*)
+- **Integration tests** extend `IntegrationTestBase`, end in `IT`, and build their
+  own data in `@BeforeEach`; never `@Transactional` on a test class.
+  (→ GLOSSARY: *Spring test context caching*, *No @Transactional on integration
+  tests*)
 - **Forms** bind to DTOs in the `dto` package, never to entities.
   (→ GLOSSARY: *DTO / form object*)
 - **Post/Redirect/Get** after every successful POST.
@@ -80,10 +84,13 @@ record; `findBalance` filters in the DB; user templates renamed to
 GLOSSARY: *Open Session in View*, *LazyInitializationException*)
 
 Roadmap, in order:
-1. **Integration tests:** Testcontainers (PostgreSQL), `@SpringBootTest` + MockMvc,
-   a test profile (also fixes `spring.profiles.active=local` living in
-   `application.properties`).
-2. **GitHub Actions CI:** `mvn verify` on every push.
+1. ✅ **Integration tests** (done): `IntegrationTestBase` + `TestcontainersConfig`
+   (PostgreSQL 17, `@ServiceConnection`, MockMvcTester, profile `test`),
+   `SecurityIT`, `ResidentAccountIT`; seeders are `@Profile("!test")`;
+   `KoinoxristaApplicationTests` removed. `spring.profiles.active=local` is still in
+   `application.properties` — tests override it with `@ActiveProfiles("test")`; moving
+   it out of the jar stays with step 7. (→ GLOSSARY §6: *Testing*)
+2. **GitHub Actions CI:** `mvn verify` on every push — **next**.
 3. **Edit/delete bill and debts** — resolve "Debt is never deleted" first
    (→ DOMAIN: *Open questions*).
 4. **Excel export** (Apache POI).

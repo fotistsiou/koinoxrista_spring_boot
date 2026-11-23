@@ -23,21 +23,35 @@ PowerShell passes `target/*.jar` to `java` literally instead of expanding it.
 
 The app listens on `http://localhost:8080` by default.
 
-## Tests
+## Running tests
 
 From IntelliJ: click the green arrow next to a test class or method.
 
-Run all tests:
+Unit tests only (`*Test`, Surefire) — fast, **no Docker needed**:
 ```bash
 ./mvnw test
 ```
-This includes `KoinoxristaApplicationTests` (`@SpringBootTest`), which starts the
-full context and needs the Docker DB up (`docker compose up -d`). The same applies
-to `./mvnw clean package`, which runs the tests too.
+
+Unit + integration tests (`*IT`, Failsafe):
+```bash
+./mvnw verify
+```
+Needs:
+- **Docker running** — Testcontainers starts a throwaway PostgreSQL 17 container.
+- **`JAVA_HOME` set.** On Windows, set it as a **user** environment variable (pointing
+  to the JDK 21 folder) and restart the IDE/terminal so it picks it up.
+
+The integration tests use **their own container database** (profile `test`,
+schema `create-drop`, seeders disabled). They never touch the `docker-compose`
+database, so local data is safe.
+
+`./mvnw clean package` runs only the unit tests (it stops before the
+integration-test phase).
 
 Run one class (the quotes are needed in PowerShell):
 ```bash
 ./mvnw test "-Dtest=BillServiceTest"
+./mvnw verify "-Dit.test=SecurityIT"
 ```
 
 The JVM warning `Sharing is only supported for boot loader classes because

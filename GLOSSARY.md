@@ -982,12 +982,15 @@ match `application-local.properties`.
 
 ### Unit vs integration test (the test pyramid)
 **What:** A unit test checks one class in isolation, in memory, in milliseconds. An
-integration test runs several real parts together (Spring context, DB). The test
-pyramid: many fast unit tests at the bottom, fewer slower integration tests above.
-**Why it matters / when I used it:** The calculator and `BillService` tests are unit
-tests; `KoinoxristaApplicationTests` (`@SpringBootTest`) is an integration test that
-needs the Docker DB. Limit: a unit test with mocked repositories cannot prove that a
-rollback happened — there is no real transaction. That needs an integration test.
+integration test runs the **whole app wired together** — Spring context, security
+filter chain, real database, template rendering. The test pyramid: many fast unit
+tests at the bottom, fewer slower integration tests above.
+**Why it matters / when I used it:** The calculator, `BillService` and `UserService`
+tests are unit tests. `SecurityIT` and `ResidentAccountIT` are integration tests:
+they catch what mocks can't — wrong security rules, broken SQL/JPQL, a missing
+`join fetch` (`LazyInitializationException` in a template), template errors, bad
+configuration. Limit of unit tests: with mocked repositories they cannot prove that a
+rollback happened — there is no real transaction.
 
 ### Arrange – Act – Assert, @Test, @BeforeEach
 **What:** Each test has three parts: set up the input (Arrange), call the code
@@ -1078,6 +1081,76 @@ also checks that service and calculators work together.
 need apartments with ids (ordering by id, `meterApartment` matching).
 `ReflectionTestUtils.setField(apartment, "id", 1L)` sets it without adding a setter
 to production code.
+
+### Testcontainers
+**What:** A library that starts real services in throwaway Docker containers for the
+duration of a test run, and removes them afterwards.
+**Why it matters / when I used it:** `TestcontainersConfig` starts **PostgreSQL 17**
+(the same major version as `docker-compose.yml`) for the integration tests. Why not
+an in-memory H2: H2 speaks a different SQL dialect and enforces constraints
+differently, so a test could pass on H2 and fail on PostgreSQL. With the real engine,
+JPQL, the `SUM` subqueries, CHECK and unique constraints behave exactly as in
+production. Needs Docker running.
+
+### @ServiceConnection
+**What:** On a container `@Bean`, it tells Spring Boot to read the connection details
+(JDBC URL, username, password) **from the container** and configure the datasource
+with them.
+**Why it matters / when I used it:** `TestcontainersConfig.postgres()` is
+`@Bean @ServiceConnection PostgreSQLContainer`. No `@DynamicPropertySource` and no
+`spring.datasource.*` in the test properties: the container picks a random port, and
+Boot wires it automatically.
+
+### Spring test context caching
+**What:** Spring caches the application context between test classes. Classes with
+**identical** configuration (same annotations, profiles, imports, mocked beans)
+reuse one context; any difference creates a new one.
+**Why it matters / when I used it:** Starting a context and a PostgreSQL container
+takes seconds. `IntegrationTestBase` puts the whole configuration (`@SpringBootTest`,
+`@AutoConfigureMockMvc`, `@ActiveProfiles("test")`, `@Import(TestcontainersConfig)`)
+in one place, so every `*IT` class shares **one context and one container per run**.
+A per-class annotation (e.g. a `@MockitoBean`) would break the cache.
+
+### MockMvcTester
+**What:** The AssertJ-style API for MockMvc: `assertThat(mvc.get().uri("/my"))
+.hasStatusOk().bodyText().contains(…)`. MockMvc calls the app **without a real
+server**, but the request still goes through the real filter chain (security, CSRF),
+controller, service, DB and Thymeleaf rendering.
+**Why it matters / when I used it:** `IntegrationTestBase` injects it (enabled by
+`@AutoConfigureMockMvc`). `SecurityIT` checks redirects/403s; `ResidentAccountIT`
+checks the rendered page text — e.g. `"103,45 €"` and `"(οφειλή)"`.
+
+### @WithMockUser vs @WithUserDetails
+**What:** Both put an authenticated user in the `SecurityContext` for a test.
+`@WithMockUser` creates a **fake** principal (default user `user`, `ROLE_USER`; or
+`roles = "ADMIN"`) without touching the DB. `@WithUserDetails("email")` loads a
+**real** user through the app's `UserDetailsService`.
+**Why it matters / when I used it:** `SecurityIT` uses `@WithMockUser` for pure
+access rules. `ResidentAccountIT` uses `@WithUserDetails` because `/my` looks the user
+up by email in the DB. `setupBefore = TestExecutionEvent.TEST_EXECUTION` is needed:
+by default the user is loaded **before** `@BeforeEach`, i.e. before the test has
+created it.
+
+### Surefire vs Failsafe
+**SETTING.** **What:** Two Maven plugins that run tests. **Surefire** runs `*Test`
+classes in the `test` phase (`./mvnw test`). **Failsafe** runs `*IT` classes in the
+`integration-test` / `verify` phases (`./mvnw verify`), and fails the build only
+after cleanup.
+**Why it matters / when I used it:** Unit tests stay fast and need no Docker; the
+slower `*IT` tests run on `verify`. Both plugins get the same Mockito-agent `argLine`
+in `pom.xml`. Note: `./mvnw package` stops before `integration-test`, so it runs only
+the unit tests.
+
+### No @Transactional on integration tests
+**What:** `@Transactional` on a test wraps each test in a transaction that is rolled
+back at the end — a popular way to clean up.
+**Why it matters / when I used it:** Not used here. With MockMvc the request runs on
+the test's thread, so the test transaction would stay **open through the controller
+and the template rendering**: lazy relations would load silently and a missing
+`join fetch` would never throw `LazyInitializationException` — re-creating Open
+Session in View in tests only. Instead, `IntegrationTestBase` cleans up in
+`@BeforeEach` with `TRUNCATE apartment, category CASCADE` (CASCADE also empties every
+table that references them), and each test builds its own data.
 
 ---
 
