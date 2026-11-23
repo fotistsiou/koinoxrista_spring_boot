@@ -937,6 +937,64 @@ startup, so a broken query would stop the app anyway; the inspection was lowered
 **Warning** instead of disabled, so it still helps elsewhere. Rule: when the IDE and
 the running app disagree, the running app wins.
 
+### CI / GitHub Actions
+**TOOLING.** **What:** Continuous Integration = every change is built and tested
+automatically on a clean machine. In GitHub Actions a **workflow** (a YAML file in
+`.github/workflows/`) contains **jobs**; each job runs a list of **steps** on a fresh
+runner.
+**Why it matters / when I used it:** `.github/workflows/ci.yml` runs on every push and
+pull request to `master`: check out → set up JDK 21 → `./mvnw -B verify` (unit +
+integration tests). "Works on my machine" stops counting — a missing file, an
+uncommitted change or a test that depends on local state fails in CI.
+
+### Runner
+**TOOLING.** **What:** The machine a job runs on. `runs-on: ubuntu-latest` gives a
+**throwaway** Linux VM, created for the job and destroyed afterwards.
+**Why it matters / when I used it:** It has **Docker preinstalled**, so Testcontainers
+starts PostgreSQL there with no extra setup. Nothing survives between runs, so every
+run starts from the committed code only (no `application-local.properties`, no local
+DB).
+
+### setup-java with cache: maven
+**TOOLING.** **What:** The `actions/setup-java` step installs a JDK and sets
+`JAVA_HOME`. `cache: maven` saves `~/.m2/repository` after the run and restores it
+next time; the cache key is a hash of `pom.xml`.
+**Why it matters / when I used it:** `distribution: temurin`, `java-version: '21'` —
+the same JDK as locally. With the cache, dependencies are downloaded only when
+`pom.xml` changes, so runs are faster.
+
+### Maven wrapper and -B (batch mode)
+**TOOLING.** **What:** `./mvnw` downloads and runs the Maven version pinned in
+`.mvn/wrapper/maven-wrapper.properties`, so every machine uses the same Maven. `-B`
+(batch mode) turns off interactive prompts, download progress bars and colors.
+**Why it matters / when I used it:** CI runs `./mvnw -B verify`: no Maven install
+needed on the runner, the same version as locally, and logs without thousands of
+progress lines.
+
+### Least-privilege workflow permissions
+**TOOLING.** **What:** Each workflow gets a `GITHUB_TOKEN`; `permissions:` limits what
+it may do with the repository.
+**Why it matters / when I used it:** `ci.yml` sets `permissions: contents: read` — the
+build only needs to read the code. If a step or a third-party action were
+compromised, it couldn't push code or change the repo.
+
+### concurrency, cancel-in-progress and timeout-minutes
+**TOOLING.** **What:** `concurrency.group` puts runs in a group (here
+`ci-${{ github.ref }}`, one per branch); with `cancel-in-progress: true`, a new run
+cancels the older one still running in the same group. `timeout-minutes` kills a job
+that runs too long.
+**Why it matters / when I used it:** Two quick pushes don't build both — only the
+latest matters. `timeout-minutes: 15` stops a hanging run (e.g. a stuck container)
+instead of using up the default 6 hours of runner time.
+
+### Executable bit in git
+**TOOLING.** **What:** Git stores a file mode per file: `100644` (normal) or `100755`
+(executable). Windows has no executable bit, so with `core.fileMode=false` git ignores
+mode changes locally — but it still stores and checks out the recorded mode on Linux.
+**Why it matters / when I used it:** `mvnw` must be `100755`, or `./mvnw` fails on the
+Linux runner with "Permission denied". Fixed once with
+`git update-index --chmod=+x mvnw` (check with `git ls-files -s mvnw`).
+
 ---
 
 ## 5. Docker & DevOps

@@ -59,6 +59,27 @@ bootstrap classpath has been appended` is a side effect of loading the Mockito a
 It is silenced by `-Xshare:off` in the surefire `argLine` in `pom.xml`; if it still
 shows up in IntelliJ, reload the Maven project. It is harmless either way.
 
+## CI
+
+GitHub Actions runs `.github/workflows/ci.yml` (`./mvnw -B verify`: unit +
+integration tests) on every push and pull request to `master`.
+
+- **See runs:** the repository's **Actions** tab on GitHub → workflow "CI". Each
+  commit also shows a ✓ / ✗ next to it.
+- **Re-run:** open the run → **Re-run jobs** (top right) → "Re-run failed jobs" or
+  "Re-run all jobs". Useful for a flaky failure (e.g. a Docker pull timeout).
+- **On failure:** the Surefire and Failsafe reports (`target/surefire-reports/`,
+  `target/failsafe-reports/`) are uploaded as the **`test-reports`** artifact,
+  listed at the bottom of the run's summary page. Download it to see the failing
+  test's full output. Artifacts are kept for **7 days**.
+- A run is cancelled if a newer push to the same branch starts, and is killed after
+  15 minutes.
+- `./mvnw: Permission denied` in CI means `mvnw` lost its executable bit:
+  ```bash
+  git update-index --chmod=+x mvnw
+  ```
+  then commit (see GLOSSARY *Executable bit in git*).
+
 ## Database
 
 PostgreSQL runs as a Docker container defined in `docker-compose.yml`. Its

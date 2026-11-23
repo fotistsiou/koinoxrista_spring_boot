@@ -90,9 +90,15 @@ Roadmap, in order:
    `KoinoxristaApplicationTests` removed. `spring.profiles.active=local` is still in
    `application.properties` — tests override it with `@ActiveProfiles("test")`; moving
    it out of the jar stays with step 7. (→ GLOSSARY §6: *Testing*)
-2. **GitHub Actions CI:** `mvn verify` on every push — **next**.
-3. **Edit/delete bill and debts** — resolve "Debt is never deleted" first
-   (→ DOMAIN: *Open questions*).
+2. ✅ **GitHub Actions CI** (done): `.github/workflows/ci.yml` runs `./mvnw -B verify`
+   on every push and pull request to `master`; test reports uploaded on failure.
+   (→ GLOSSARY: *CI / GitHub Actions*; RUNBOOK: *CI*)
+
+   **Phase A (steps 1–2) complete — pending the phase gate.**
+
+3. **Edit/delete bill and debts** — **next**. Open question to resolve first: the
+   "Debt is a permanent record, never deleted" statement vs editing/deleting a bill
+   and its debts (→ DOMAIN: *Open questions*).
 4. **Excel export** (Apache POI).
 5. **Tailwind + Alpine**, custom login page.
 6. **Flyway** + `ddl-auto=validate`, explicit constraint names.
