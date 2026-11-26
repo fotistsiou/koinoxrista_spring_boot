@@ -24,8 +24,8 @@ instead of the object building them with `new`. Constructor injection supplies t
 as constructor parameters.
 **Why it matters / when I used it:** Every controller/seeder here takes its
 repository (e.g. `ApartmentRepository`) via the constructor — Spring wires it
-automatically. It makes
-dependencies explicit, allows `final` fields, and lets you pass mocks in tests. In
+automatically. It makes dependencies explicit, 
+allows `final` fields, and lets you pass mocks in tests. In
 PHP terms it's the container resolving type-hinted constructor args, done for you.
 
 ### Bean
